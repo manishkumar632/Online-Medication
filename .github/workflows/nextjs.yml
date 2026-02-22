@@ -75,6 +75,8 @@ jobs:
         run: npm ci
       - name: Build with Next.js
         working-directory: frontend/medsyncpro
+        env:
+          NEXT_PUBLIC_API_URL: https://medsyncpro-backend-production.up.railway.app
         run: |
           npm run build
 

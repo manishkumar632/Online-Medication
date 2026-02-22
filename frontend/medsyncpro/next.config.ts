@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   output: "export",
   basePath: "/online-medication",
   assetPrefix: "/online-medication/",
+  images: { unoptimized: true },
 };
 
 export default nextConfig;
