@@ -24,7 +24,7 @@ function VerifyEmailContent() {
             });
             const data = await response.json();
             console.log('Response:', response.status, data);
-            
+
             if (response.ok) {
                 setStatus("success");
                 setMessage(data.message || "Email verified successfully!");
@@ -48,7 +48,7 @@ function VerifyEmailContent() {
                         <h2 className="text-2xl font-bold text-gray-900">Verifying Email...</h2>
                     </>
                 )}
-                
+
                 {status === "success" && (
                     <>
                         <div className="text-green-500 text-6xl mb-4">✓</div>
@@ -59,13 +59,13 @@ function VerifyEmailContent() {
                         </a>
                     </>
                 )}
-                
+
                 {status === "error" && (
                     <>
                         <div className="text-red-500 text-6xl mb-4">✗</div>
                         <h2 className="text-2xl font-bold text-gray-900 mb-2">Verification Failed</h2>
                         <p className="text-gray-600 mb-6">{message}</p>
-                        <a href="/auth/signup" className="inline-block bg-cyan-500 text-white rounded-full py-3 px-6 font-medium hover:bg-cyan-600 transition">
+                        <a href="/online-medication/auth/signup" className="inline-block bg-cyan-500 text-white rounded-full py-3 px-6 font-medium hover:bg-cyan-600 transition">
                             Back to Signup
                         </a>
                     </>
