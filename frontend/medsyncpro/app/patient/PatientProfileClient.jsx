@@ -253,6 +253,11 @@ export default function PatientProfileClient() {
                 setDraft(apiProfile);
                 setApiConnected(true);
 
+                // Sync profile image URL back to AuthContext so Header can display it
+                if (p.profileImageUrl) {
+                    updateAuthProfile({ profileImageUrl: p.profileImageUrl });
+                }
+
                 if (p.documents && Array.isArray(p.documents)) {
                     setDocuments(p.documents);
                 }

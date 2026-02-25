@@ -115,6 +115,7 @@ export function AuthProvider({ children }) {
                     name: data.data.name,
                     email: data.data.email,
                     role: data.data.role,
+                    profileImageUrl: data.data.profileImageUrl || user?.profileImageUrl,
                     expiresAt: Date.now() + 24 * 60 * 60 * 1000,
                 };
                 setUser(refreshed);
