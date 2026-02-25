@@ -1,11 +1,11 @@
 "use client";
-import PatientProfileClient from "./PatientProfileClient";
+import PatientProfilePage from "./PatientProfilePage";
 import RouteGuard from "../components/RouteGuard";
 
-export default function PatientProfilePage() {
+export default function PatientPage() {
     return (
         <RouteGuard allowedRoles={["PATIENT"]}>
-            <PatientProfileClient />
+            <PatientProfilePage />
         </RouteGuard>
     );
 }
