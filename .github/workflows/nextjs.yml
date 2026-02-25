@@ -76,7 +76,8 @@ jobs:
       - name: Build with Next.js
         working-directory: frontend/medsyncpro
         env:
-          NEXT_PUBLIC_API_URL: https://medsyncpro-backend-production.up.railway.app
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
         run: |
           npm run build
 
