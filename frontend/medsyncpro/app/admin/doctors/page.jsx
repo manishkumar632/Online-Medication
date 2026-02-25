@@ -1,6 +1,6 @@
 "use client";
 import "./doctors.css";
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import {
     Search, Filter, ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal,
     CheckCircle2, XCircle, Shield, ShieldAlert, Eye, UserPlus,
@@ -9,6 +9,7 @@ import {
     ClipboardCheck, BadgeCheck, ShieldOff, Flag, MessageSquare, Download,
     ArrowUpDown, Check, BarChart3
 } from "lucide-react";
+import { API_BASE_URL } from "@/lib/config";
 
 /* ═══════════════════════════════════════════════════════
    MOCK DATA — Rich, realistic doctor data
@@ -27,25 +28,55 @@ const STATUS_MAP = {
     inactive: { label: "Inactive", color: "#94a3b8", bg: "rgba(148,163,184,0.1)" },
 };
 
-const MOCK_DOCTORS = [
-    { id: "d1", name: "Dr. Sarah Chen", email: "sarah.chen@medsync.com", phone: "+1 (555) 123-4567", specialty: "Cardiology", experience: 12, license: "MD-2019-4821", status: "verified", accountStatus: "active", joined: "2024-01-15", avatar: null, rating: 4.8, patients: 234, appointments: 1847, prescriptions: 3201, bio: "Board-certified cardiologist with expertise in interventional procedures and heart failure management.", address: "123 Medical Center Dr, New York, NY", documents: { license: true, certificates: true, idProof: true }, notes: "Excellent track record. Top-rated doctor.", lastActive: "2 hours ago", riskFlag: false },
-    { id: "d2", name: "Dr. James Wilson", email: "james.wilson@medsync.com", phone: "+1 (555) 234-5678", specialty: "Neurology", experience: 8, license: "MD-2020-7392", status: "verified", accountStatus: "active", joined: "2024-02-20", avatar: null, rating: 4.6, patients: 187, appointments: 1203, prescriptions: 2180, bio: "Neurologist specializing in movement disorders and neurodegenerative diseases.", address: "456 Brain Health Ave, Boston, MA", documents: { license: true, certificates: true, idProof: true }, notes: "", lastActive: "5 hours ago", riskFlag: false },
-    { id: "d3", name: "Dr. Priya Sharma", email: "priya.sharma@medsync.com", phone: "+1 (555) 345-6789", specialty: "Pediatrics", experience: 15, license: "MD-2018-1156", status: "pending", accountStatus: "active", joined: "2025-02-18", avatar: null, rating: 0, patients: 0, appointments: 0, prescriptions: 0, bio: "Experienced pediatrician with focus on developmental disorders and neonatal care.", address: "789 Children's Way, Chicago, IL", documents: { license: true, certificates: false, idProof: true }, notes: "Awaiting certificate verification.", lastActive: "Just now", riskFlag: false },
-    { id: "d4", name: "Dr. Michael Brown", email: "michael.brown@medsync.com", phone: "+1 (555) 456-7890", specialty: "Orthopedics", experience: 20, license: "MD-2015-8834", status: "pending", accountStatus: "active", joined: "2025-02-20", avatar: null, rating: 0, patients: 0, appointments: 0, prescriptions: 0, bio: "Orthopedic surgeon specializing in joint replacement and sports medicine.", address: "321 Bone & Joint Blvd, Dallas, TX", documents: { license: true, certificates: true, idProof: false }, notes: "ID proof pending re-upload.", lastActive: "1 day ago", riskFlag: false },
-    { id: "d5", name: "Dr. Emily Davis", email: "emily.davis@medsync.com", phone: "+1 (555) 567-8901", specialty: "Dermatology", experience: 6, license: "MD-2022-3341", status: "rejected", accountStatus: "inactive", joined: "2025-01-10", avatar: null, rating: 0, patients: 0, appointments: 0, prescriptions: 0, bio: "Dermatologist with interest in cosmetic procedures and skin cancer screening.", address: "654 Skin Care Ln, Miami, FL", documents: { license: false, certificates: false, idProof: true }, notes: "License document unclear. Requested re-upload on Feb 5.", lastActive: "2 weeks ago", riskFlag: true },
-    { id: "d6", name: "Dr. Robert Kim", email: "robert.kim@medsync.com", phone: "+1 (555) 678-9012", specialty: "Surgery", experience: 18, license: "MD-2016-5567", status: "verified", accountStatus: "active", joined: "2023-11-05", avatar: null, rating: 4.9, patients: 312, appointments: 2456, prescriptions: 4102, bio: "General surgeon with subspecialty in laparoscopic and robotic-assisted surgery.", address: "987 Surgical Center, San Francisco, CA", documents: { license: true, certificates: true, idProof: true }, notes: "Exemplary performance. Consider for featured doctor.", lastActive: "30 min ago", riskFlag: false },
-    { id: "d7", name: "Dr. Lisa Thompson", email: "lisa.t@medsync.com", phone: "+1 (555) 789-0123", specialty: "Psychiatry", experience: 10, license: "MD-2019-9023", status: "suspended", accountStatus: "suspended", joined: "2024-03-15", avatar: null, rating: 3.2, patients: 89, appointments: 567, prescriptions: 1230, bio: "Psychiatrist specializing in anxiety disorders and PTSD treatment.", address: "741 Mind Health Rd, Seattle, WA", documents: { license: true, certificates: true, idProof: true }, notes: "Suspended due to patient complaints. Under review since Feb 10.", lastActive: "1 month ago", riskFlag: true },
-    { id: "d8", name: "Dr. Ahmed Hassan", email: "ahmed.h@medsync.com", phone: "+1 (555) 890-1234", specialty: "General Medicine", experience: 5, license: "MD-2023-1102", status: "pending", accountStatus: "active", joined: "2025-02-22", avatar: null, rating: 0, patients: 0, appointments: 0, prescriptions: 0, bio: "General practitioner with focus on preventive medicine and chronic disease management.", address: "852 Primary Care St, Houston, TX", documents: { license: true, certificates: true, idProof: true }, notes: "All documents uploaded. Ready for review.", lastActive: "3 hours ago", riskFlag: false },
-    { id: "d9", name: "Dr. Maria Garcia", email: "maria.g@medsync.com", phone: "+1 (555) 901-2345", specialty: "Oncology", experience: 14, license: "MD-2017-6678", status: "verified", accountStatus: "active", joined: "2024-05-10", avatar: null, rating: 4.7, patients: 156, appointments: 1089, prescriptions: 2890, bio: "Medical oncologist with expertise in breast cancer and immunotherapy.", address: "963 Cancer Research Dr, Baltimore, MD", documents: { license: true, certificates: true, idProof: true }, notes: "", lastActive: "1 hour ago", riskFlag: false },
-    { id: "d10", name: "Dr. David Park", email: "david.park@medsync.com", phone: "+1 (555) 012-3456", specialty: "Ophthalmology", experience: 9, license: "MD-2020-4490", status: "verified", accountStatus: "inactive", joined: "2024-06-01", avatar: null, rating: 4.4, patients: 201, appointments: 980, prescriptions: 1560, bio: "Ophthalmologist specializing in LASIK surgery and retinal diseases.", address: "147 Eye Care Center, Los Angeles, CA", documents: { license: true, certificates: true, idProof: true }, notes: "Requested leave of absence.", lastActive: "3 days ago", riskFlag: false },
-];
-
-const VERIFICATION_QUEUE = MOCK_DOCTORS.filter(d => d.status === "pending");
 const PAGE_SIZE = 8;
 
-/* ═══════════════════════════════════════════════════════
-   MAIN COMPONENT
-   ═══════════════════════════════════════════════════════ */
+function mapApiDoctor(u) {
+    const approved = u.approved;
+    const deleted = u.deleted;
+    let status = "pending";
+    if (deleted) status = "suspended";
+    else if (approved === true) status = "verified";
+    else if (approved === false && u.emailVerified) status = "pending";
+
+    return {
+        id: u.id,
+        name: u.name || "Unknown",
+        email: u.email || "",
+        phone: u.phone || "",
+        specialty: "General",
+        experience: 0,
+        license: "",
+        status,
+        accountStatus: deleted ? "suspended" : (approved ? "active" : "inactive"),
+        joined: u.createdAt || "",
+        avatar: u.profileImageUrl || null,
+        rating: 0,
+        patients: 0,
+        appointments: 0,
+        prescriptions: 0,
+        bio: "",
+        address: "",
+        documents: {
+            license: (u.documents || []).some(d => d.type === "LICENSE"),
+            certificates: (u.documents || []).some(d => d.type === "CERTIFICATE"),
+            idProof: (u.documents || []).some(d => d.type === "ID_PROOF"),
+        },
+        notes: "",
+        lastActive: u.updatedAt ? getTimeAgo(u.updatedAt) : "—",
+        riskFlag: false,
+    };
+}
+
+function getTimeAgo(dateStr) {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins} min ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs} hours ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days} days ago`;
+}
+
 export default function DoctorsPage() {
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
@@ -55,10 +86,27 @@ export default function DoctorsPage() {
     const [currentPage, setCurrentPage] = useState(1);
     const [selected, setSelected] = useState(new Set());
     const [drawerDoc, setDrawerDoc] = useState(null);
-    const [doctors, setDoctors] = useState(MOCK_DOCTORS);
+    const [doctors, setDoctors] = useState([]);
     const [showFilters, setShowFilters] = useState(false);
     const [adminNote, setAdminNote] = useState("");
-    const [confirmAction, setConfirmAction] = useState(null); // {type, doctor}
+    const [confirmAction, setConfirmAction] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    /* ── Fetch doctors from API ── */
+    const fetchDoctors = useCallback(async () => {
+        setLoading(true);
+        try {
+            const params = new URLSearchParams({ role: "DOCTOR", page: 0, size: 100 });
+            const res = await fetch(`${API_BASE_URL}/api/admin/users?${params}`, { credentials: "include" });
+            const data = await res.json();
+            if (data.success && data.data) {
+                setDoctors((data.data.content || []).map(mapApiDoctor));
+            }
+        } catch { setDoctors([]); }
+        finally { setLoading(false); }
+    }, []);
+
+    useEffect(() => { fetchDoctors(); }, [fetchDoctors]);
 
     /* ── Derived data ── */
     const filtered = useMemo(() => {
@@ -107,32 +155,34 @@ export default function DoctorsPage() {
         setConfirmAction({ type, doctor });
     };
 
-    const confirmActionHandler = () => {
+    const confirmActionHandler = async () => {
         if (!confirmAction) return;
         const { type, doctor } = confirmAction;
-        switch (type) {
-            case "approve":
-                updateDoctor(doctor.id, { status: "verified", accountStatus: "active" });
-                break;
-            case "reject":
-                updateDoctor(doctor.id, { status: "rejected", accountStatus: "inactive" });
-                break;
-            case "suspend":
-                updateDoctor(doctor.id, { status: "suspended", accountStatus: "suspended" });
-                break;
-            case "activate":
-                updateDoctor(doctor.id, { status: "verified", accountStatus: "active" });
-                break;
-        }
+        const actionMap = { approve: "approve", reject: "reject", suspend: "suspend", activate: "activate" };
+        const endpoint = actionMap[type];
+        if (!endpoint) return;
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/admin/users/${doctor.id}/${endpoint}`, {
+                method: "PATCH", credentials: "include",
+            });
+            if (res.ok) {
+                fetchDoctors(); // Refresh list from API
+            }
+        } catch { /* silent */ }
         setConfirmAction(null);
     };
 
-    const bulkAction = (type) => {
-        selected.forEach(id => {
-            if (type === "approve") updateDoctor(id, { status: "verified", accountStatus: "active" });
-            else if (type === "suspend") updateDoctor(id, { status: "suspended", accountStatus: "suspended" });
-        });
+    const bulkAction = async (type) => {
+        const endpoint = type === "approve" ? "approve" : "suspend";
+        for (const id of selected) {
+            try {
+                await fetch(`${API_BASE_URL}/api/admin/users/${id}/${endpoint}`, {
+                    method: "PATCH", credentials: "include",
+                });
+            } catch { /* silent */ }
+        }
         setSelected(new Set());
+        fetchDoctors();
     };
 
     const toggleSelect = (id) => {
@@ -192,22 +242,25 @@ export default function DoctorsPage() {
             </div>
 
             {/* ── Verification Queue ── */}
-            {VERIFICATION_QUEUE.length > 0 && (
+            {doctors.filter(d => d.status === "pending").length > 0 && (
                 <div className="dm-verification-queue admin-glass-card">
                     <div className="dm-vq-header">
                         <div className="dm-vq-title">
                             <ShieldAlert size={18} style={{ color: "#f59e0b" }} />
                             <h3>Verification Queue</h3>
-                            <span className="dm-vq-count">{VERIFICATION_QUEUE.length} pending</span>
+                            <span className="dm-vq-count">{doctors.filter(d => d.status === "pending").length} pending</span>
                         </div>
-                        <button className="dm-vq-bulk-btn" onClick={() => {
-                            VERIFICATION_QUEUE.forEach(d => updateDoctor(d.id, { status: "verified", accountStatus: "active" }));
+                        <button className="dm-vq-bulk-btn" onClick={async () => {
+                            for (const d of doctors.filter(d => d.status === "pending")) {
+                                try { await fetch(`${API_BASE_URL}/api/admin/users/${d.id}/approve`, { method: "PATCH", credentials: "include" }); } catch { }
+                            }
+                            fetchDoctors();
                         }}>
                             <CheckCircle2 size={14} /> Approve All
                         </button>
                     </div>
                     <div className="dm-vq-list">
-                        {VERIFICATION_QUEUE.map(doc => (
+                        {doctors.filter(d => d.status === "pending").map(doc => (
                             <div key={doc.id} className="dm-vq-item">
                                 <div className="dm-vq-avatar" style={{ background: getAvatarColor(doc.name) }}>
                                     {getInitials(doc.name)}

@@ -72,9 +72,34 @@ export default function PatientProfilePage() {
         shareWithDoctors: true, allowReviews: false, profileVisible: true,
     });
 
-    /* ── Initialize from auth context ── */
+    /* ── Load profile from backend API ── */
     useEffect(() => {
-        if (user) {
+        if (!user) return;
+        const loadProfile = async () => {
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/users/profile`, {
+                    credentials: "include",
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.success && data.data) {
+                        const p = data.data;
+                        setForm({
+                            name: p.name || "",
+                            phone: p.phone || "",
+                            gender: p.gender || "",
+                            dob: p.dob || "",
+                            address: p.address || "",
+                            city: p.city || "",
+                            state: p.state || "",
+                            bloodGroup: p.bloodGroup || "",
+                            profileImageUrl: p.profileImageUrl || "",
+                        });
+                        return;
+                    }
+                }
+            } catch { /* fallback to auth context */ }
+            // Fallback: use auth context data
             setForm({
                 name: user.name || "",
                 phone: user.phone || "",
@@ -86,8 +111,9 @@ export default function PatientProfilePage() {
                 bloodGroup: user.bloodGroup || "",
                 profileImageUrl: user.profileImageUrl || user.profileImage || "",
             });
-        }
-    }, [user]);
+        };
+        loadProfile();
+    }, [user?.userId]);
 
     const updateField = (field, value) => {
         setForm(p => ({ ...p, [field]: value }));
@@ -265,9 +291,9 @@ export default function PatientProfilePage() {
                                     <label className="pp-form-label">Gender</label>
                                     <select className="pp-form-select" value={form.gender} onChange={e => updateField("gender", e.target.value)}>
                                         <option value="">Select Gender</option>
-                                        <option value="Male">Male</option>
-                                        <option value="Female">Female</option>
-                                        <option value="Other">Other</option>
+                                        <option value="MALE">Male</option>
+                                        <option value="FEMALE">Female</option>
+                                        <option value="OTHER">Other</option>
                                     </select>
                                 </div>
                                 <div className="pp-form-group">

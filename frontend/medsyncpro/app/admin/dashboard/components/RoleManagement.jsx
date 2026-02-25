@@ -1,43 +1,131 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
-    Search, SlidersHorizontal, Eye, Pencil, Ban, CheckCircle, ChevronDown,
+    Search, SlidersHorizontal, Eye, Pencil, Ban, CheckCircle, ChevronDown, ChevronLeft, ChevronRight,
 } from "lucide-react";
-
-const patientsData = [
-    { id: 1, name: "Sarah Johnson", age: 34, condition: "Diabetes Type 2", status: "Active", verified: true, lastActivity: "2 hours ago" },
-    { id: 2, name: "Michael Chen", age: 45, condition: "Hypertension", status: "Active", verified: true, lastActivity: "5 hours ago" },
-    { id: 3, name: "Emma Wilson", age: 28, condition: "Asthma", status: "Inactive", verified: false, lastActivity: "3 days ago" },
-    { id: 4, name: "James Brown", age: 52, condition: "Arthritis", status: "Active", verified: true, lastActivity: "1 hour ago" },
-    { id: 5, name: "Lisa Anderson", age: 39, condition: "Migraine", status: "Active", verified: true, lastActivity: "30 mins ago" },
-];
-
-const doctorsData = [
-    { id: 1, name: "Dr. Emily Roberts", specialty: "Cardiology", experience: "12 yrs", verification: "Verified", availability: "Available" },
-    { id: 2, name: "Dr. David Kim", specialty: "Neurology", experience: "8 yrs", verification: "Pending", availability: "On Leave" },
-    { id: 3, name: "Dr. Maria Garcia", specialty: "Pediatrics", experience: "15 yrs", verification: "Verified", availability: "Available" },
-    { id: 4, name: "Dr. John Smith", specialty: "Orthopedics", experience: "10 yrs", verification: "Verified", availability: "Available" },
-    { id: 5, name: "Dr. Aisha Patel", specialty: "Dermatology", experience: "6 yrs", verification: "Pending", availability: "Available" },
-];
-
-const pharmacistsData = [
-    { id: 1, name: "MedPlus Pharmacy", license: "Active", verification: "Verified", orders: 1245 },
-    { id: 2, name: "HealthFirst Drugs", license: "Pending Renewal", verification: "Pending", orders: 890 },
-    { id: 3, name: "CareWell Pharmacy", license: "Active", verification: "Verified", orders: 2100 },
-    { id: 4, name: "QuickMeds Store", license: "Active", verification: "Verified", orders: 675 },
-    { id: 5, name: "TrustRx Pharmacy", license: "Expired", verification: "Rejected", orders: 430 },
-];
+import { API_BASE_URL } from "@/lib/config";
 
 const avatarColors = ["#0d9488", "#6366f1", "#8b5cf6", "#0891b2", "#059669", "#f59e0b"];
+const PAGE_SIZE = 5;
 
 const tabs = [
-    { key: "patients", label: "Patients", count: 12845 },
-    { key: "doctors", label: "Doctors", count: 1234 },
-    { key: "pharmacists", label: "Pharmacists", count: 856 },
+    { key: "patients", label: "Patients", role: "PATIENT" },
+    { key: "doctors", label: "Doctors", role: "DOCTOR" },
+    { key: "pharmacists", label: "Pharmacists", role: "PHARMACIST" },
 ];
 
 export default function RoleManagement() {
     const [activeTab, setActiveTab] = useState("patients");
+    const [users, setUsers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [page, setPage] = useState(0);
+    const [totalPages, setTotalPages] = useState(0);
+    const [totalElements, setTotalElements] = useState(0);
+    const [search, setSearch] = useState("");
+    const [tabCounts, setTabCounts] = useState({ patients: 0, doctors: 0, pharmacists: 0 });
+
+    const fetchUsers = useCallback(async (role, pageNum, searchQuery) => {
+        setLoading(true);
+        try {
+            const params = new URLSearchParams({ role, page: pageNum, size: PAGE_SIZE });
+            if (searchQuery?.trim()) params.append("search", searchQuery.trim());
+
+            const res = await fetch(`${API_BASE_URL}/api/admin/users?${params}`, { credentials: "include" });
+            const data = await res.json();
+            if (data.success && data.data) {
+                setUsers(data.data.content || []);
+                setTotalPages(data.data.totalPages || 0);
+                setTotalElements(data.data.totalElements || 0);
+            }
+        } catch { setUsers([]); }
+        finally { setLoading(false); }
+    }, []);
+
+    // Fetch counts for all tabs on mount
+    useEffect(() => {
+        const fetchCounts = async () => {
+            const counts = {};
+            for (const tab of tabs) {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/admin/users?role=${tab.role}&page=0&size=1`, { credentials: "include" });
+                    const data = await res.json();
+                    counts[tab.key] = data.success ? data.data.totalElements : 0;
+                } catch { counts[tab.key] = 0; }
+            }
+            setTabCounts(counts);
+        };
+        fetchCounts();
+    }, []);
+
+    // Fetch users when tab, page, or search changes
+    useEffect(() => {
+        const tab = tabs.find(t => t.key === activeTab);
+        if (tab) fetchUsers(tab.role, page, search);
+    }, [activeTab, page, search, fetchUsers]);
+
+    const handleTabChange = (key) => {
+        setActiveTab(key);
+        setPage(0);
+        setSearch("");
+    };
+
+    const handleApprove = async (userId) => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/approve`, {
+                method: "PATCH", credentials: "include",
+            });
+            if (res.ok) {
+                setUsers(prev => prev.map(u => u.id === userId ? { ...u, approved: true } : u));
+            }
+        } catch { /* silent */ }
+    };
+
+    const handleSuspend = async (userId) => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/suspend`, {
+                method: "PATCH", credentials: "include",
+            });
+            if (res.ok) {
+                setUsers(prev => prev.filter(u => u.id !== userId));
+                setTotalElements(prev => prev - 1);
+            }
+        } catch { /* silent */ }
+    };
+
+    const getInitials = (name) => name?.split(" ").filter(Boolean).map(n => n[0]).join("").toUpperCase().slice(0, 2) || "?";
+
+    const renderRow = (user, idx) => {
+        const initials = getInitials(user.name);
+        const isApproved = user.approved;
+        const isVerified = user.emailVerified;
+
+        return (
+            <tr key={user.id}>
+                <td>
+                    <div className="admin-table-user">
+                        <div className="admin-table-avatar" style={{ background: avatarColors[idx % avatarColors.length] }}>
+                            {user.profileImageUrl ? <img src={user.profileImageUrl} alt="" style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} /> : initials}
+                        </div>
+                        <div>
+                            <span style={{ fontWeight: 500 }}>{user.name}</span>
+                            <div style={{ fontSize: "12px", color: "#94a3b8" }}>{user.email}</div>
+                        </div>
+                    </div>
+                </td>
+                <td>{user.phone || "—"}</td>
+                <td><span className={`admin-status-badge ${isApproved ? "active" : "pending"}`}>{isApproved ? "Approved" : "Pending"}</span></td>
+                <td><span className={`admin-status-badge ${isVerified ? "verified" : "pending"}`}>{isVerified ? "Verified" : "Unverified"}</span></td>
+                <td className="admin-muted">{user.createdAt ? new Date(user.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}</td>
+                <td>
+                    <div className="admin-table-actions">
+                        <button className="admin-action-btn" title="View"><Eye size={14} /></button>
+                        {!isApproved && <button className="admin-action-btn admin-action-approve" title="Approve" onClick={() => handleApprove(user.id)}><CheckCircle size={14} /></button>}
+                        <button className="admin-action-btn admin-action-danger" title="Suspend" onClick={() => handleSuspend(user.id)}><Ban size={14} /></button>
+                    </div>
+                </td>
+            </tr>
+        );
+    };
 
     return (
         <div className="admin-glass-card admin-role-section">
@@ -48,159 +136,76 @@ export default function RoleManagement() {
                         <button
                             key={tab.key}
                             className={`admin-role-tab ${activeTab === tab.key ? "active" : ""}`}
-                            onClick={() => setActiveTab(tab.key)}
+                            onClick={() => handleTabChange(tab.key)}
                         >
                             {tab.label}
-                            <span className="admin-tab-count">{tab.count.toLocaleString()}</span>
+                            <span className="admin-tab-count">{(tabCounts[tab.key] || 0).toLocaleString()}</span>
                         </button>
                     ))}
                 </div>
                 <div className="admin-role-controls">
                     <div className="admin-role-search">
                         <Search size={14} />
-                        <input type="text" placeholder="Search..." />
+                        <input
+                            type="text"
+                            placeholder="Search by name or email..."
+                            value={search}
+                            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+                        />
                     </div>
-                    <button className="admin-filter-pill">
-                        <SlidersHorizontal size={14} />
-                        Filter
-                    </button>
                 </div>
             </div>
 
             {/* Table */}
             <div className="admin-table-wrap">
-                {activeTab === "patients" && (
+                {loading ? (
+                    <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>Loading...</div>
+                ) : users.length === 0 ? (
+                    <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>
+                        No {activeTab} found{search ? ` matching "${search}"` : ""}.
+                    </div>
+                ) : (
                     <table className="admin-table">
                         <thead>
                             <tr>
                                 <th>Name</th>
-                                <th>Age</th>
-                                <th>Condition</th>
-                                <th>Status</th>
-                                <th>Verified</th>
-                                <th>Last Activity</th>
+                                <th>Phone</th>
+                                <th>Approval</th>
+                                <th>Email Verified</th>
+                                <th>Joined</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {patientsData.map((row, idx) => (
-                                <tr key={row.id}>
-                                    <td>
-                                        <div className="admin-table-user">
-                                            <div className="admin-table-avatar" style={{ background: avatarColors[idx % avatarColors.length] }}>
-                                                {row.name.split(" ").map((n) => n[0]).join("")}
-                                            </div>
-                                            <span>{row.name}</span>
-                                        </div>
-                                    </td>
-                                    <td>{row.age}</td>
-                                    <td>{row.condition}</td>
-                                    <td><span className={`admin-status-badge ${row.status.toLowerCase()}`}>{row.status}</span></td>
-                                    <td><span className={`admin-status-badge ${row.verified ? "verified" : "pending"}`}>{row.verified ? "Yes" : "No"}</span></td>
-                                    <td className="admin-muted">{row.lastActivity}</td>
-                                    <td>
-                                        <div className="admin-table-actions">
-                                            <button className="admin-action-btn" title="View"><Eye size={14} /></button>
-                                            <button className="admin-action-btn" title="Edit"><Pencil size={14} /></button>
-                                            <button className="admin-action-btn admin-action-danger" title="Block"><Ban size={14} /></button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                )}
-
-                {activeTab === "doctors" && (
-                    <table className="admin-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Specialty</th>
-                                <th>Experience</th>
-                                <th>Verification</th>
-                                <th>Availability</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {doctorsData.map((row, idx) => (
-                                <tr key={row.id}>
-                                    <td>
-                                        <div className="admin-table-user">
-                                            <div className="admin-table-avatar" style={{ background: avatarColors[idx % avatarColors.length] }}>
-                                                {row.name.replace("Dr. ", "").split(" ").map((n) => n[0]).join("")}
-                                            </div>
-                                            <span>{row.name}</span>
-                                        </div>
-                                    </td>
-                                    <td>{row.specialty}</td>
-                                    <td>{row.experience}</td>
-                                    <td><span className={`admin-status-badge ${row.verification.toLowerCase()}`}>{row.verification}</span></td>
-                                    <td><span className={`admin-status-badge ${row.availability === "Available" ? "active" : row.availability === "On Leave" ? "inactive" : ""}`}>{row.availability}</span></td>
-                                    <td>
-                                        <div className="admin-table-actions">
-                                            <button className="admin-action-btn" title="View"><Eye size={14} /></button>
-                                            <button className="admin-action-btn" title="Edit"><Pencil size={14} /></button>
-                                            {row.verification === "Pending" && <button className="admin-action-btn admin-action-approve" title="Approve"><CheckCircle size={14} /></button>}
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                )}
-
-                {activeTab === "pharmacists" && (
-                    <table className="admin-table">
-                        <thead>
-                            <tr>
-                                <th>Pharmacy Name</th>
-                                <th>License</th>
-                                <th>Verification</th>
-                                <th>Orders Handled</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {pharmacistsData.map((row, idx) => (
-                                <tr key={row.id}>
-                                    <td>
-                                        <div className="admin-table-user">
-                                            <div className="admin-table-avatar" style={{ background: avatarColors[idx % avatarColors.length] }}>
-                                                {row.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                                            </div>
-                                            <span>{row.name}</span>
-                                        </div>
-                                    </td>
-                                    <td><span className={`admin-status-badge ${row.license === "Active" ? "active" : row.license === "Expired" ? "rejected" : "pending"}`}>{row.license}</span></td>
-                                    <td><span className={`admin-status-badge ${row.verification.toLowerCase()}`}>{row.verification}</span></td>
-                                    <td>{row.orders.toLocaleString()}</td>
-                                    <td>
-                                        <div className="admin-table-actions">
-                                            <button className="admin-action-btn" title="View"><Eye size={14} /></button>
-                                            <button className="admin-action-btn" title="Edit"><Pencil size={14} /></button>
-                                            {row.verification === "Pending" && <button className="admin-action-btn admin-action-approve" title="Approve"><CheckCircle size={14} /></button>}
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
+                            {users.map((user, idx) => renderRow(user, idx))}
                         </tbody>
                     </table>
                 )}
             </div>
 
             {/* Pagination */}
-            <div className="admin-pagination">
-                <div className="admin-page-btns">
-                    {["Prev", 1, 2, 3, "...", 10, "Next"].map((p, i) => (
-                        <button key={i} className={`admin-page-btn ${p === 1 ? "active" : ""} ${typeof p === "string" && p === "..." ? "dots" : ""}`}>
-                            {p}
+            {totalPages > 1 && (
+                <div className="admin-pagination">
+                    <div className="admin-page-btns">
+                        <button className="admin-page-btn" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
+                            <ChevronLeft size={14} />
                         </button>
-                    ))}
+                        {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                            const pageNum = page < 3 ? i : page - 2 + i;
+                            if (pageNum >= totalPages) return null;
+                            return (
+                                <button key={pageNum} className={`admin-page-btn ${pageNum === page ? "active" : ""}`} onClick={() => setPage(pageNum)}>
+                                    {pageNum + 1}
+                                </button>
+                            );
+                        })}
+                        <button className="admin-page-btn" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
+                            <ChevronRight size={14} />
+                        </button>
+                    </div>
+                    <span className="admin-page-info">Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, totalElements)} of {totalElements.toLocaleString()}</span>
                 </div>
-                <span className="admin-page-info">Showing 1–5 of 12,845</span>
-            </div>
+            )}
         </div>
     );
 }
