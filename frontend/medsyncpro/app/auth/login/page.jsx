@@ -43,13 +43,26 @@ const Login = () => {
             console.log("[LOGIN] Response Body:", data);
 
             if (response.ok && data.success) {
-                // Token is set as HttpOnly cookie by the backend — not in JSON body
                 const userData = data.data;
                 console.log("[LOGIN] ✅ Login successful — user:", userData.name);
+
+                // Try to extract JWT token from response body or cookie
+                let token = data.token || data.data?.token || null;
+
+                // Try reading from document.cookie (non-HttpOnly cookies)
+                if (!token) {
+                    const match = document.cookie.match(/(?:^|;\s*)token=([^;]*)/);
+                    if (match) token = match[1];
+                }
+
+                console.log("[LOGIN] Token captured:", token ? "yes (" + token.substring(0, 20) + "...)" : "no (HttpOnly cookie)");
+
                 login({
+                    _id: userData.userId,
                     name: userData.name,
                     email: userData.email,
                     role: userData.role || "PATIENT",
+                    token: token,
                 });
                 window.location.href = "/online-medication";
             } else if (response.status === 401) {
