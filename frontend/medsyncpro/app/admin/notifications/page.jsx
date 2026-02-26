@@ -13,7 +13,7 @@ export default function NotificationsPage() {
             markAsRead(notification.id);
         }
         if (notification.type === "VERIFICATION_REQUEST" && notification.referenceId) {
-            router.push(`/admin/verifications/${notification.referenceId}`);
+            router.push(`/admin/verifications/details?id=${notification.referenceId}`);
         }
     };
 

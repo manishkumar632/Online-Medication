@@ -1,17 +1,14 @@
 "use client";
-import React, { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import React, { useEffect, useState, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { API_BASE_URL } from "@/lib/config";
 import { Check, X, ArrowLeft, FileText, User as UserIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/app/context/AuthContext";
 
-export function generateStaticParams() {
-    return [];
-}
-
-export default function VerificationDetailsPage() {
-    const { id } = useParams();
+function VerificationDetailsContent() {
+    const searchParams = useSearchParams();
+    const id = searchParams.get("id");
     const router = useRouter();
     const { user } = useAuth();
 
@@ -22,7 +19,7 @@ export default function VerificationDetailsPage() {
     const [showRejectInput, setShowRejectInput] = useState(false);
 
     useEffect(() => {
-        if (!user || user.role !== 'ADMIN') return;
+        if (!user || user.role !== 'ADMIN' || !id) return;
 
         const fetchDetails = async () => {
             try {
@@ -83,6 +80,14 @@ export default function VerificationDetailsPage() {
         }
     };
 
+    if (!id) {
+        return (
+            <div className="p-6 text-center text-gray-500">
+                Invalid verification ID.
+            </div>
+        );
+    }
+
     if (loading) {
         return (
             <div className="flex items-center justify-center p-12">
@@ -111,8 +116,8 @@ export default function VerificationDetailsPage() {
                 </button>
                 <h1 className="text-2xl font-bold text-gray-800">Verification Details</h1>
                 <span className={`ml-auto px-3 py-1 text-sm font-medium rounded-full 
-                    ${request.status === 'PENDING' ? 'bg-orange-100 text-orange-700' :
-                        request.status === 'APPROVED' ? 'bg-green-100 text-green-700' :
+                    ${request.status === 'PENDING' || request.status === 'UNDER_REVIEW' || request.status === 'DOCUMENT_SUBMITTED' ? 'bg-orange-100 text-orange-700' :
+                        request.status === 'APPROVED' || request.status === 'VERIFIED' ? 'bg-green-100 text-green-700' :
                             'bg-red-100 text-red-700'}`}
                 >
                     {request.status}
@@ -189,7 +194,7 @@ export default function VerificationDetailsPage() {
                     </div>
 
                     {/* Actions */}
-                    {request.status === 'PENDING' && (
+                    {(request.status === 'PENDING' || request.status === 'DOCUMENT_SUBMITTED' || request.status === 'UNDER_REVIEW') && (
                         <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
                             <h3 className="text-lg font-semibold text-gray-800 mb-4">Verification Actions</h3>
 
@@ -245,5 +250,17 @@ export default function VerificationDetailsPage() {
                 </div>
             </div>
         </div>
+    );
+}
+
+export default function VerificationDetailsPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex items-center justify-center p-12">
+                <Loader2 className="w-8 h-8 animate-spin text-teal-600" />
+            </div>
+        }>
+            <VerificationDetailsContent />
+        </Suspense>
     );
 }
