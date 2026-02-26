@@ -1,7 +1,13 @@
 "use client";
 import { Search, Bell, Plus, ChevronDown, Menu } from "lucide-react";
 
+import { useNotifications } from "@/app/context/NotificationContext";
+import { useRouter } from "next/navigation";
+
 export default function AdminNavbar({ onMenuToggle }) {
+    const { unreadCount } = useNotifications();
+    const router = useRouter();
+
     return (
         <header className="admin-topnav">
             <button className="admin-hamburger" onClick={onMenuToggle}>
@@ -23,9 +29,9 @@ export default function AdminNavbar({ onMenuToggle }) {
                 </button>
 
                 {/* Notifications */}
-                <button className="admin-notif-btn">
+                <button className="admin-notif-btn" onClick={() => router.push("/admin/notifications")}>
                     <Bell size={18} />
-                    <span className="admin-notif-badge">3</span>
+                    {unreadCount > 0 && <span className="admin-notif-badge">{unreadCount}</span>}
                 </button>
 
                 {/* Profile */}

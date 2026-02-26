@@ -64,9 +64,10 @@ export function AuthProvider({ children }) {
 
     // ─── Login: store user data ───
     const login = useCallback((userData) => {
-        // userData: { userId, name, email, role }
+        // userData: { userId, name, email, role, professionalVerificationStatus }
         const enriched = {
             ...userData,
+            professionalVerificationStatus: userData.professionalVerificationStatus || "UNVERIFIED",
             expiresAt: userData.expiresAt || Date.now() + 24 * 60 * 60 * 1000,
         };
         setUser(enriched);
@@ -115,6 +116,7 @@ export function AuthProvider({ children }) {
                     name: data.data.name,
                     email: data.data.email,
                     role: data.data.role,
+                    professionalVerificationStatus: data.data.professionalVerificationStatus || "UNVERIFIED",
                     profileImageUrl: data.data.profileImageUrl || user?.profileImageUrl,
                     expiresAt: Date.now() + 24 * 60 * 60 * 1000,
                 };
