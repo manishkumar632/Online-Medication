@@ -31,12 +31,15 @@ const STATUS_MAP = {
 const PAGE_SIZE = 8;
 
 function mapApiDoctor(u) {
-    const approved = u.approved;
     const deleted = u.deleted;
+    const vs = u.professionalVerificationStatus; // VERIFIED, DOCUMENT_SUBMITTED, REJECTED, EMAIL_VERIFIED, UNVERIFIED
+
     let status = "pending";
     if (deleted) status = "suspended";
-    else if (approved === true) status = "verified";
-    else if (approved === false && u.emailVerified) status = "pending";
+    else if (vs === "VERIFIED") status = "verified";
+    else if (vs === "REJECTED") status = "rejected";
+    else if (vs === "DOCUMENT_SUBMITTED") status = "pending";
+    else status = "inactive"; // EMAIL_VERIFIED or UNVERIFIED — haven't submitted docs yet
 
     return {
         id: u.id,
@@ -47,7 +50,7 @@ function mapApiDoctor(u) {
         experience: 0,
         license: "",
         status,
-        accountStatus: deleted ? "suspended" : (approved ? "active" : "inactive"),
+        accountStatus: deleted ? "suspended" : (vs === "VERIFIED" ? "active" : "inactive"),
         joined: u.createdAt || "",
         avatar: u.profileImageUrl || null,
         rating: 0,
