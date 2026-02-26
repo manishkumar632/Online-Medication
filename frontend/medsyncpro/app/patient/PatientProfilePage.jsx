@@ -133,15 +133,34 @@ export default function PatientProfilePage() {
     const handleSave = async () => {
         setSaving(true);
         try {
+            // Filter out empty strings for enums/dates to avoid Jackson parsing errors
+            const cleanedForm = { ...form };
+            if (cleanedForm.gender === "") delete cleanedForm.gender;
+            if (cleanedForm.bloodGroup === "") delete cleanedForm.bloodGroup;
+            if (cleanedForm.dob === "") delete cleanedForm.dob;
+            // The backend doesn't expect profileImageUrl in the DTO
+            delete cleanedForm.profileImageUrl;
+
+            const formData = new FormData();
+            formData.append("profile", JSON.stringify(cleanedForm));
+
+            if (selectedImageFile) {
+                formData.append("profileImage", selectedImageFile);
+            }
+
             const res = await fetch(`${API_BASE_URL}/api/users/profile`, {
-                method: "PUT",
+                method: "PATCH",
                 credentials: "include",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(form),
+                body: formData,
             });
             if (res.ok) {
-                updateAuthProfile({ ...form });
+                const data = await res.json();
+                if (data.success && data.data) {
+                    updateAuthProfile({ ...data.data });
+                    setForm(p => ({ ...p, profileImageUrl: data.data.profileImageUrl || p.profileImageUrl }));
+                }
                 setHasChanges(false);
+                setSelectedImageFile(null);
                 toast.success("Profile updated successfully!");
             } else {
                 toast.error("Failed to update profile");
@@ -154,9 +173,12 @@ export default function PatientProfilePage() {
     };
 
     /* ── Image upload ── */
+    const [selectedImageFile, setSelectedImageFile] = useState(null);
+
     const handleImageSelect = (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        setSelectedImageFile(file);
         const reader = new FileReader();
         reader.onload = (ev) => {
             updateField("profileImageUrl", ev.target.result);
