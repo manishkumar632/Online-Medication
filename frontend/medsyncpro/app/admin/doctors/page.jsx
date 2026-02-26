@@ -58,9 +58,10 @@ function mapApiDoctor(u) {
         address: "",
         documents: {
             license: (u.documents || []).some(d => d.type === "LICENSE"),
-            certificates: (u.documents || []).some(d => d.type === "CERTIFICATE"),
+            degree: (u.documents || []).some(d => d.type === "DEGREE"),
             idProof: (u.documents || []).some(d => d.type === "ID_PROOF"),
         },
+        rawDocuments: u.documents || [],
         notes: "",
         lastActive: u.updatedAt ? getTimeAgo(u.updatedAt) : "—",
         riskFlag: false,
@@ -159,6 +160,7 @@ export default function DoctorsPage() {
         if (!confirmAction) return;
         const { type, doctor } = confirmAction;
         const actionMap = { approve: "approve", reject: "reject", suspend: "suspend", activate: "activate" };
+        const statusAfterAction = { approve: "verified", reject: "rejected", suspend: "suspended", activate: "verified" };
         const endpoint = actionMap[type];
         if (!endpoint) return;
         try {
@@ -166,6 +168,8 @@ export default function DoctorsPage() {
                 method: "PATCH", credentials: "include",
             });
             if (res.ok) {
+                const newStatus = statusAfterAction[type] || doctor.status;
+                updateDoctor(doctor.id, { status: newStatus, accountStatus: newStatus === "suspended" ? "suspended" : "active" });
                 fetchDoctors(); // Refresh list from API
             }
         } catch { /* silent */ }
@@ -272,7 +276,7 @@ export default function DoctorsPage() {
                                         {Object.entries(doc.documents).map(([key, val]) => (
                                             <span key={key} className={`dm-doc-badge ${val ? "ok" : "missing"}`}>
                                                 {val ? <Check size={10} /> : <AlertTriangle size={10} />}
-                                                {key === "license" ? "License" : key === "certificates" ? "Certs" : "ID"}
+                                                {key === "license" ? "License" : key === "degree" ? "Degree" : "ID"}
                                             </span>
                                         ))}
                                     </div>
@@ -521,7 +525,9 @@ export default function DoctorsPage() {
    ═══════════════════════════════════════════════════════ */
 function DoctorActions({ doc, onAction, onView }) {
     const [open, setOpen] = useState(false);
+    const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
     const ref = useRef(null);
+    const btnRef = useRef(null);
 
     useEffect(() => {
         const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
@@ -529,13 +535,21 @@ function DoctorActions({ doc, onAction, onView }) {
         return () => document.removeEventListener("mousedown", handler);
     }, [open]);
 
+    const handleToggle = () => {
+        if (!open && btnRef.current) {
+            const rect = btnRef.current.getBoundingClientRect();
+            setMenuPos({ top: rect.bottom + 4, left: rect.right });
+        }
+        setOpen(!open);
+    };
+
     return (
         <div className="dm-actions-wrap" ref={ref}>
-            <button className="dm-actions-btn" onClick={() => setOpen(!open)}>
+            <button className="dm-actions-btn" ref={btnRef} onClick={handleToggle}>
                 <MoreHorizontal size={16} />
             </button>
             {open && (
-                <div className="dm-actions-menu">
+                <div className="dm-actions-menu" style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, transform: 'translateX(-100%)', zIndex: 9999 }}>
                     <button onClick={() => { onView(); setOpen(false); }}><Eye size={14} /> View Profile</button>
                     {doc.status === "pending" && (
                         <>
@@ -561,6 +575,18 @@ function DoctorActions({ doc, onAction, onView }) {
    ═══════════════════════════════════════════════════════ */
 function DoctorDrawer({ doc, onClose, onAction, getInitials, getAvatarColor, adminNote, setAdminNote, updateDoctor }) {
     const [activeSection, setActiveSection] = useState("profile");
+    const [previewDoc, setPreviewDoc] = useState(null);
+
+    const findDocByKey = (key) => {
+        const typeMap = { license: "LICENSE", degree: "DEGREE", idProof: "ID_PROOF" };
+        return (doc.rawDocuments || []).find(d => d.type === typeMap[key]);
+    };
+
+    const isImage = (url) => {
+        if (!url) return false;
+        const lower = url.toLowerCase();
+        return lower.includes('.jpg') || lower.includes('.jpeg') || lower.includes('.png') || lower.includes('.gif') || lower.includes('.webp');
+    };
 
     return (
         <>
@@ -628,7 +654,7 @@ function DoctorDrawer({ doc, onClose, onAction, getInitials, getAvatarColor, adm
                             <div className="dm-doc-list">
                                 {[
                                     { key: "license", label: "Medical License", icon: <Award size={18} /> },
-                                    { key: "certificates", label: "Certificates", icon: <ClipboardCheck size={18} /> },
+                                    { key: "degree", label: "Degree Certificate", icon: <ClipboardCheck size={18} /> },
                                     { key: "idProof", label: "ID Proof", icon: <Shield size={18} /> },
                                 ].map(item => (
                                     <div key={item.key} className={`dm-doc-row ${doc.documents[item.key] ? "uploaded" : "missing"}`}>
@@ -640,7 +666,10 @@ function DoctorDrawer({ doc, onClose, onAction, getInitials, getAvatarColor, adm
                                             </span>
                                         </div>
                                         {doc.documents[item.key] ? (
-                                            <button className="dm-doc-preview-btn"><Eye size={14} /> Preview</button>
+                                            <button className="dm-doc-preview-btn" onClick={() => {
+                                                const found = findDocByKey(item.key);
+                                                if (found) setPreviewDoc(found);
+                                            }}><Eye size={14} /> Preview</button>
                                         ) : (
                                             <button className="dm-doc-request-btn">Request Upload</button>
                                         )}
@@ -732,6 +761,50 @@ function DoctorDrawer({ doc, onClose, onAction, getInitials, getAvatarColor, adm
                         </div>
                     )}
                 </div>
+
+                {/* Document Preview Modal */}
+                {previewDoc && (
+                    <div style={{
+                        position: 'fixed', inset: 0, zIndex: 10000,
+                        background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }} onClick={() => setPreviewDoc(null)}>
+                        <div style={{
+                            background: '#fff', borderRadius: 16, width: '90vw', maxWidth: 900,
+                            height: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                            boxShadow: '0 25px 50px rgba(0,0,0,0.25)'
+                        }} onClick={e => e.stopPropagation()}>
+                            <div style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                padding: '16px 24px', borderBottom: '1px solid #f0f0f0'
+                            }}>
+                                <div>
+                                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#111' }}>{previewDoc.type}</h3>
+                                    <p style={{ margin: '2px 0 0', fontSize: 12, color: '#888' }}>{previewDoc.fileName || 'Document'}</p>
+                                </div>
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                    <a href={previewDoc.url} target="_blank" rel="noopener noreferrer"
+                                        style={{ fontSize: 13, color: '#0d9488', textDecoration: 'none', padding: '6px 12px', borderRadius: 8 }}>
+                                        Open in new tab
+                                    </a>
+                                    <button onClick={() => setPreviewDoc(null)}
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 8, borderRadius: '50%' }}>
+                                        <X size={18} color="#666" />
+                                    </button>
+                                </div>
+                            </div>
+                            <div style={{ flex: 1, overflow: 'auto', background: '#f8f8f8', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+                                {isImage(previewDoc.url) ? (
+                                    <img src={previewDoc.url} alt={previewDoc.type}
+                                        style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8 }} />
+                                ) : (
+                                    <iframe src={previewDoc.url} title={previewDoc.type}
+                                        style={{ width: '100%', height: '100%', border: '1px solid #e5e5e5', borderRadius: 8 }} />
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </aside>
         </>
     );

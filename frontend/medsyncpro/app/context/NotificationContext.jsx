@@ -1,24 +1,27 @@
 "use client";
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { requestFirebaseNotificationPermission, onMessageListener } from "@/lib/firebase";
 import { useAuth } from "@/app/context/AuthContext";
 import { API_BASE_URL } from "@/lib/config";
-import { toast } from "sonner"; // Assuming sonner is available based on package.json
+import { toast } from "sonner";
 
 const NotificationContext = createContext(null);
 
 export const NotificationProvider = ({ children }) => {
-    const { user } = useAuth();
+    const { user, validateSession } = useAuth();
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
+    const sseRef = useRef(null);
+    const reconnectTimeoutRef = useRef(null);
 
+    // ── Fetch notifications from API ──
     const fetchNotifications = useCallback(async () => {
-        if (!user || user.role !== 'ADMIN') return;
+        if (!user) return;
         try {
-            const res = await fetch(`${API_BASE_URL}/api/admin/notifications`, {
+            const res = await fetch(`${API_BASE_URL}/api/notifications`, {
                 method: "GET",
                 headers: { "Content-Type": "application/json" },
-                credentials: "include", // Pass cookies (access_token)
+                credentials: "include",
             });
             if (res.ok) {
                 const data = await res.json();
@@ -30,44 +33,144 @@ export const NotificationProvider = ({ children }) => {
         }
     }, [user]);
 
-    const registerFcmToken = useCallback(async (token) => {
+    // ── Fetch unread count ──
+    const fetchUnreadCount = useCallback(async () => {
+        if (!user) return;
         try {
-            await fetch(`${API_BASE_URL}/api/admin/fcm-token`, {
-                method: "POST",
+            const res = await fetch(`${API_BASE_URL}/api/notifications/unread-count`, {
+                method: "GET",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
-                body: JSON.stringify({ token }),
             });
+            if (res.ok) {
+                const data = await res.json();
+                setUnreadCount(data.data?.unreadCount || 0);
+            }
         } catch (error) {
-            console.error("Failed to register FCM token", error);
+            console.error("Failed to fetch unread count", error);
         }
-    }, []);
+    }, [user]);
 
-    useEffect(() => {
-        if (user && user.role === 'ADMIN') {
-            fetchNotifications();
+    // ── SSE Connection ──
+    const connectSSE = useCallback(() => {
+        if (!user) return;
 
-            // Setup Firebase FCM
-            requestFirebaseNotificationPermission().then((token) => {
-                if (token) {
-                    registerFcmToken(token);
+        // Close existing connection
+        if (sseRef.current) {
+            sseRef.current.close();
+            sseRef.current = null;
+        }
+
+        // Clear any pending reconnect
+        if (reconnectTimeoutRef.current) {
+            clearTimeout(reconnectTimeoutRef.current);
+            reconnectTimeoutRef.current = null;
+        }
+
+        try {
+            const eventSource = new EventSource(
+                `${API_BASE_URL}/api/notifications/stream`,
+                { withCredentials: true }
+            );
+
+            eventSource.addEventListener("connected", () => {
+                console.log("SSE connected");
+            });
+
+            eventSource.addEventListener("notification", (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+
+                    // Show toast
+                    toast.info(data.title, {
+                        description: data.message,
+                    });
+
+                    // Refresh notifications and unread count
+                    fetchNotifications();
+                    fetchUnreadCount();
+
+                    // If it's a verification decision, also refresh auth session
+                    if (data.type === "VERIFICATION_DECISION") {
+                        validateSession?.();
+                    }
+                } catch (e) {
+                    console.error("Failed to parse SSE notification", e);
                 }
             });
-        }
-    }, [user, fetchNotifications, registerFcmToken]);
 
-    // Handle incoming messages
+            eventSource.onerror = () => {
+                console.warn("SSE connection error, will reconnect...");
+                eventSource.close();
+                sseRef.current = null;
+
+                // Reconnect after 5 seconds
+                reconnectTimeoutRef.current = setTimeout(() => {
+                    if (user) {
+                        connectSSE();
+                    }
+                }, 5000);
+            };
+
+            sseRef.current = eventSource;
+        } catch (error) {
+            console.error("Failed to establish SSE connection", error);
+
+            // Fallback: poll every 30 seconds
+            reconnectTimeoutRef.current = setTimeout(() => {
+                if (user) {
+                    fetchUnreadCount();
+                    connectSSE();
+                }
+            }, 30000);
+        }
+    }, [user, fetchNotifications, fetchUnreadCount, validateSession]);
+
+    // ── Setup SSE + Initial Fetch ──
+    useEffect(() => {
+        if (user) {
+            fetchNotifications();
+            connectSSE();
+
+            // For admins, also setup Firebase
+            if (user.role === 'ADMIN') {
+                requestFirebaseNotificationPermission().then(async (token) => {
+                    if (token) {
+                        try {
+                            await fetch(`${API_BASE_URL}/api/admin/fcm-token`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                credentials: "include",
+                                body: JSON.stringify({ token }),
+                            });
+                        } catch (error) {
+                            console.error("Failed to register FCM token", error);
+                        }
+                    }
+                });
+            }
+        }
+
+        return () => {
+            if (sseRef.current) {
+                sseRef.current.close();
+                sseRef.current = null;
+            }
+            if (reconnectTimeoutRef.current) {
+                clearTimeout(reconnectTimeoutRef.current);
+                reconnectTimeoutRef.current = null;
+            }
+        };
+    }, [user, fetchNotifications, connectSSE]);
+
+    // ── Firebase foreground messages (admin only) ──
     useEffect(() => {
         const setupMessageListener = () => {
             onMessageListener().then((payload) => {
                 toast.info(`${payload.notification.title}`, {
                     description: payload.notification.body,
                 });
-
-                // Optimistically increment or refresh
                 fetchNotifications();
-
-                // Recursive call to keep listening
                 setupMessageListener();
             });
         };
@@ -77,25 +180,26 @@ export const NotificationProvider = ({ children }) => {
         }
     }, [user, fetchNotifications]);
 
+    // ── Mark as Read ──
     const markAsRead = async (id) => {
         // Optimistic update
         setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
         setUnreadCount(prev => Math.max(0, prev - 1));
 
         try {
-            await fetch(`${API_BASE_URL}/api/admin/notifications/${id}/read`, {
+            await fetch(`${API_BASE_URL}/api/notifications/${id}/read`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
+                credentials: "include",
             });
         } catch (error) {
             console.error("Failed to mark as read", error);
-            // Revert on failure could be implemented here
             fetchNotifications();
         }
     };
 
     return (
-        <NotificationContext.Provider value={{ notifications, unreadCount, fetchNotifications, markAsRead }}>
+        <NotificationContext.Provider value={{ notifications, unreadCount, fetchNotifications, fetchUnreadCount, markAsRead }}>
             {children}
         </NotificationContext.Provider>
     );

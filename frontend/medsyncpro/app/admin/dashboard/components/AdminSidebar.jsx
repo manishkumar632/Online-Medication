@@ -8,6 +8,7 @@ import {
     ChevronDown, Shield, CheckCircle2, Calendar, Lock, Flag, Plug, Monitor
 } from "lucide-react";
 import { useAuth } from "@/app/context/AuthContext";
+import { useNotifications } from "@/app/context/NotificationContext";
 import { API_BASE_URL } from "@/lib/config";
 
 const basePath = "/admin";
@@ -21,7 +22,7 @@ const menuItems = [
     { name: "Prescriptions", icon: FileText, href: `${basePath}/prescriptions` },
     { name: "Payments", icon: CreditCard, href: `${basePath}/payments` },
     { name: "Reports", icon: BarChart3, href: `${basePath}/reports` },
-    { name: "Notifications", icon: Bell, badge: 5, href: `${basePath}/notifications` },
+    { name: "Notifications", icon: Bell, href: `${basePath}/notifications`, useBadge: "notifications" },
 ];
 
 const settingsSubItems = [
@@ -45,6 +46,8 @@ export default function AdminSidebar({ collapsed, onToggle }) {
     const searchParams = useSearchParams();
     const router = useRouter();
     const { logout } = useAuth();
+    let unreadCount = 0;
+    try { const n = useNotifications(); unreadCount = n?.unreadCount || 0; } catch { }
     const [loggingOut, setLoggingOut] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(pathname.startsWith(`${basePath}/settings`));
 
@@ -113,8 +116,8 @@ export default function AdminSidebar({ collapsed, onToggle }) {
                         >
                             <item.icon size={19} />
                             {!collapsed && <span>{item.name}</span>}
-                            {!collapsed && item.badge && (
-                                <span className="admin-nav-badge">{item.badge}</span>
+                            {!collapsed && item.useBadge === "notifications" && unreadCount > 0 && (
+                                <span className="admin-nav-badge">{unreadCount}</span>
                             )}
                         </Link>
                     ))}

@@ -117,6 +117,9 @@ export function AuthProvider({ children }) {
                     email: data.data.email,
                     role: data.data.role,
                     professionalVerificationStatus: data.data.professionalVerificationStatus || "UNVERIFIED",
+                    canPrescribe: data.data.canPrescribe || false,
+                    canAcceptAppointments: data.data.canAcceptAppointments || false,
+                    canAccessFullDashboard: data.data.canAccessFullDashboard || false,
                     profileImageUrl: data.data.profileImageUrl || user?.profileImageUrl,
                     expiresAt: Date.now() + 24 * 60 * 60 * 1000,
                 };

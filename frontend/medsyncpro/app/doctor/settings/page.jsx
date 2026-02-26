@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
     User, Briefcase, Building2, CalendarClock, MessageSquareText, Bell,
     FileCheck, ShieldCheck, Lock, UserX, Camera, X, Plus, Trash2, Upload,
@@ -7,9 +7,24 @@ import {
     CheckCircle2, Clock, Globe, Phone, Mail, MapPin, Languages, Award,
     Stethoscope, IndianRupee
 } from "lucide-react";
+import { useAuth } from "@/app/context/AuthContext";
+import { API_BASE_URL } from "@/lib/config";
+import { toast } from "sonner";
 import "../doctor-settings.css";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+// ── API helper ──
+async function api(path, options = {}) {
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+        credentials: "include",
+        headers: { "Content-Type": "application/json", ...options.headers },
+        ...options,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Request failed");
+    return data.data;
+}
 
 function Toggle({ checked, onChange }) {
     return (
@@ -55,7 +70,7 @@ function TagInput({ tags, onChange, placeholder }) {
 }
 
 // ────────────────────────── PROFILE ──────────────────────────
-function ProfileSection() {
+function ProfileSection({ data, onChange }) {
     const [photo, setPhoto] = useState(null);
     return (
         <div className="ds-section" id="profile">
@@ -64,8 +79,10 @@ function ProfileSection() {
 
             <div className="ds-photo-upload">
                 <div className="ds-avatar">
-                    {photo ? <img src={URL.createObjectURL(photo)} alt="avatar" /> : <User size={36} />}
-                    <label className="ds-avatar-edit"><Camera size={14} /><input type="file" accept="image/*" hidden onChange={(e) => setPhoto(e.target.files[0])} /></label>
+                    {photo ? <img src={URL.createObjectURL(photo)} alt="avatar" />
+                        : data.profileImageUrl ? <img src={data.profileImageUrl} alt="avatar" />
+                            : <User size={36} />}
+                    <label className="ds-avatar-edit"><Camera size={14} /><input type="file" accept="image/*" hidden onChange={(e) => { setPhoto(e.target.files[0]); onChange("_profileImage", e.target.files[0]); }} /></label>
                 </div>
                 <div className="ds-photo-info">
                     <span className="ds-photo-label">Profile Photo</span>
@@ -76,37 +93,37 @@ function ProfileSection() {
             <div className="ds-form-grid">
                 <div className="ds-field">
                     <label>Full Name</label>
-                    <input type="text" placeholder="Dr. John Smith" />
+                    <input type="text" value={data.name || ""} onChange={(e) => onChange("name", e.target.value)} placeholder="Dr. John Smith" />
                 </div>
                 <div className="ds-field">
                     <label>Email <span className="ds-readonly-badge">Read-only</span></label>
-                    <input type="email" value="dr.smith@medsyncpro.com" readOnly className="ds-readonly" />
+                    <input type="email" value={data.email || ""} readOnly className="ds-readonly" />
                 </div>
                 <div className="ds-field">
                     <label>Phone Number</label>
-                    <div className="ds-input-icon"><Phone size={15} /><input type="tel" placeholder="+91 98765 43210" /></div>
+                    <div className="ds-input-icon"><Phone size={15} /><input type="tel" value={data.phone || ""} onChange={(e) => onChange("phone", e.target.value)} placeholder="+91 98765 43210" /></div>
                 </div>
                 <div className="ds-field">
                     <label>Gender</label>
-                    <select><option value="">Select</option><option>Male</option><option>Female</option><option>Other</option></select>
+                    <select value={data.gender || ""} onChange={(e) => onChange("gender", e.target.value)}>
+                        <option value="">Select</option><option value="MALE">Male</option><option value="FEMALE">Female</option><option value="OTHER">Other</option>
+                    </select>
                 </div>
                 <div className="ds-field">
                     <label>Date of Birth</label>
-                    <input type="date" />
+                    <input type="date" value={data.dob || ""} onChange={(e) => onChange("dob", e.target.value)} />
                 </div>
             </div>
             <div className="ds-field ds-full">
                 <label>Bio / About</label>
-                <textarea rows={4} placeholder="Write a short bio about yourself, your experience, and your approach to patient care..." />
+                <textarea rows={4} value={data.bio || ""} onChange={(e) => onChange("bio", e.target.value)} placeholder="Write a short bio about yourself, your experience, and your approach to patient care..." />
             </div>
         </div>
     );
 }
 
 // ────────────────────────── PROFESSIONAL INFO ──────────────────────────
-function ProfessionalSection() {
-    const [expertise, setExpertise] = useState(["Cardiac Surgery", "Interventional Cardiology"]);
-    const [languages, setLanguages] = useState(["English", "Hindi"]);
+function ProfessionalSection({ data, onChange }) {
     return (
         <div className="ds-section" id="professional">
             <h2 className="ds-section-title"><Briefcase size={20} /> Professional Info</h2>
@@ -115,7 +132,7 @@ function ProfessionalSection() {
             <div className="ds-form-grid">
                 <div className="ds-field">
                     <label>Specialty</label>
-                    <select>
+                    <select value={data.specialty || ""} onChange={(e) => onChange("specialty", e.target.value)}>
                         <option value="">Select Specialty</option>
                         <option>Cardiology</option><option>Dermatology</option><option>Neurology</option>
                         <option>Orthopedics</option><option>Pediatrics</option><option>General Medicine</option>
@@ -123,35 +140,35 @@ function ProfessionalSection() {
                 </div>
                 <div className="ds-field">
                     <label>Qualifications</label>
-                    <input type="text" placeholder="MBBS, MD, DM" />
+                    <input type="text" value={data.qualifications || ""} onChange={(e) => onChange("qualifications", e.target.value)} placeholder="MBBS, MD, DM" />
                 </div>
                 <div className="ds-field">
                     <label>Experience (Years)</label>
-                    <input type="number" placeholder="12" min="0" />
+                    <input type="number" value={data.experienceYears || ""} onChange={(e) => onChange("experienceYears", parseInt(e.target.value) || null)} placeholder="12" min="0" />
                 </div>
                 <div className="ds-field">
                     <label>Medical Registration Number</label>
-                    <input type="text" placeholder="MCI-12345" />
+                    <input type="text" value={data.medRegNumber || ""} onChange={(e) => onChange("medRegNumber", e.target.value)} placeholder="MCI-12345" />
                 </div>
                 <div className="ds-field">
                     <label>Consultation Fee</label>
-                    <div className="ds-input-icon"><IndianRupee size={15} /><input type="number" placeholder="500" /></div>
+                    <div className="ds-input-icon"><IndianRupee size={15} /><input type="number" value={data.consultationFee || ""} onChange={(e) => onChange("consultationFee", parseFloat(e.target.value) || null)} placeholder="500" /></div>
                 </div>
             </div>
             <div className="ds-field ds-full">
                 <label>Languages Spoken</label>
-                <TagInput tags={languages} onChange={setLanguages} placeholder="Add language..." />
+                <TagInput tags={data.languages || []} onChange={(v) => onChange("languages", v)} placeholder="Add language..." />
             </div>
             <div className="ds-field ds-full">
                 <label>Areas of Expertise</label>
-                <TagInput tags={expertise} onChange={setExpertise} placeholder="Add expertise..." />
+                <TagInput tags={data.expertise || []} onChange={(v) => onChange("expertise", v)} placeholder="Add expertise..." />
             </div>
         </div>
     );
 }
 
 // ────────────────────────── CLINIC ──────────────────────────
-function ClinicSection() {
+function ClinicSection({ clinics, onAddClinic, onDeleteClinic, clinicForm, onClinicFormChange }) {
     return (
         <div className="ds-section" id="clinic">
             <h2 className="ds-section-title"><Building2 size={20} /> Clinic / Practice Info</h2>
@@ -160,73 +177,56 @@ function ClinicSection() {
             <div className="ds-form-grid">
                 <div className="ds-field">
                     <label>Clinic Name</label>
-                    <input type="text" placeholder="HeartCare Clinics" />
+                    <input type="text" value={clinicForm.clinicName || ""} onChange={(e) => onClinicFormChange("clinicName", e.target.value)} placeholder="HeartCare Clinics" />
                 </div>
                 <div className="ds-field">
                     <label>City</label>
-                    <input type="text" placeholder="Mumbai" />
+                    <input type="text" value={clinicForm.city || ""} onChange={(e) => onClinicFormChange("city", e.target.value)} placeholder="Mumbai" />
                 </div>
                 <div className="ds-field ds-full">
                     <label>Address</label>
-                    <div className="ds-input-icon"><MapPin size={15} /><input type="text" placeholder="123, Marine Drive, Mumbai - 400001" /></div>
-                </div>
-                <div className="ds-field">
-                    <label>Consultation Mode</label>
-                    <select>
-                        <option>Online Only</option>
-                        <option>In-Person Only</option>
-                        <option>Both (Online & In-Person)</option>
-                    </select>
+                    <div className="ds-input-icon"><MapPin size={15} /><input type="text" value={clinicForm.address || ""} onChange={(e) => onClinicFormChange("address", e.target.value)} placeholder="123, Marine Drive, Mumbai - 400001" /></div>
                 </div>
             </div>
+            <button type="button" className="ds-add-btn" onClick={onAddClinic}><Plus size={14} /> Add Location</button>
 
-            <div className="ds-field ds-full" style={{ marginTop: 8 }}>
-                <label>Working Locations</label>
-                <div className="ds-location-list">
-                    <div className="ds-location-item">
-                        <MapPin size={14} />
-                        <span>HeartCare Clinics — Marine Drive, Mumbai</span>
-                        <button type="button" className="ds-remove-btn"><X size={14} /></button>
-                    </div>
-                    <div className="ds-location-item">
-                        <MapPin size={14} />
-                        <span>City Hospital — Andheri, Mumbai</span>
-                        <button type="button" className="ds-remove-btn"><X size={14} /></button>
+            {clinics.length > 0 && (
+                <div className="ds-field ds-full" style={{ marginTop: 12 }}>
+                    <label>Working Locations</label>
+                    <div className="ds-location-list">
+                        {clinics.map((c) => (
+                            <div key={c.id} className="ds-location-item">
+                                <MapPin size={14} />
+                                <span>{c.clinicName} — {c.address}, {c.city}</span>
+                                <button type="button" className="ds-remove-btn" onClick={() => onDeleteClinic(c.id)}><X size={14} /></button>
+                            </div>
+                        ))}
                     </div>
                 </div>
-                <button type="button" className="ds-add-btn"><Plus size={14} /> Add Location</button>
-            </div>
+            )}
         </div>
     );
 }
 
 // ────────────────────────── AVAILABILITY & SCHEDULE ──────────────────────────
-function AvailabilitySection() {
-    const [available, setAvailable] = useState(true);
-    const [schedule, setSchedule] = useState(
-        DAYS.reduce((acc, d) => ({
-            ...acc,
-            [d]: d === "Sunday"
-                ? { enabled: false, slots: [] }
-                : { enabled: true, slots: [{ start: "09:00", end: "13:00" }, { start: "14:00", end: "18:00" }] }
-        }), {})
-    );
-
+function AvailabilitySection({ data, onChange }) {
+    const schedule = data.weeklySchedule || {};
     const toggleDay = (day) => {
-        setSchedule((s) => ({ ...s, [day]: { ...s[day], enabled: !s[day].enabled } }));
+        const updated = { ...schedule, [day]: { ...schedule[day], enabled: !schedule[day]?.enabled } };
+        onChange("weeklySchedule", updated);
     };
     const updateSlot = (day, idx, field, val) => {
-        setSchedule((s) => {
-            const slots = [...s[day].slots];
-            slots[idx] = { ...slots[idx], [field]: val };
-            return { ...s, [day]: { ...s[day], slots } };
-        });
+        const slots = [...(schedule[day]?.slots || [])];
+        slots[idx] = { ...slots[idx], [field]: val };
+        onChange("weeklySchedule", { ...schedule, [day]: { ...schedule[day], slots } });
     };
     const addSlot = (day) => {
-        setSchedule((s) => ({ ...s, [day]: { ...s[day], slots: [...s[day].slots, { start: "09:00", end: "17:00" }] } }));
+        const slots = [...(schedule[day]?.slots || []), { start: "09:00", end: "17:00" }];
+        onChange("weeklySchedule", { ...schedule, [day]: { ...schedule[day], slots } });
     };
     const removeSlot = (day, idx) => {
-        setSchedule((s) => ({ ...s, [day]: { ...s[day], slots: s[day].slots.filter((_, i) => i !== idx) } }));
+        const slots = (schedule[day]?.slots || []).filter((_, i) => i !== idx);
+        onChange("weeklySchedule", { ...schedule, [day]: { ...schedule[day], slots } });
     };
 
     return (
@@ -239,25 +239,25 @@ function AvailabilitySection() {
                     <span className="ds-toggle-label">Available for Consultations</span>
                     <span className="ds-toggle-hint">Toggle off to pause all appointments</span>
                 </div>
-                <Toggle checked={available} onChange={setAvailable} />
+                <Toggle checked={data.availableForConsultation ?? true} onChange={(v) => onChange("availableForConsultation", v)} />
             </div>
 
             <div className="ds-schedule-editor">
                 {DAYS.map((day) => (
-                    <div key={day} className={`ds-schedule-row ${!schedule[day].enabled ? "disabled" : ""}`}>
+                    <div key={day} className={`ds-schedule-row ${!schedule[day]?.enabled ? "disabled" : ""}`}>
                         <div className="ds-schedule-day">
-                            <Toggle checked={schedule[day].enabled} onChange={() => toggleDay(day)} />
+                            <Toggle checked={schedule[day]?.enabled ?? false} onChange={() => toggleDay(day)} />
                             <span>{day}</span>
                         </div>
                         <div className="ds-schedule-slots">
-                            {schedule[day].enabled ? (
+                            {schedule[day]?.enabled ? (
                                 <>
-                                    {schedule[day].slots.map((slot, idx) => (
+                                    {(schedule[day]?.slots || []).map((slot, idx) => (
                                         <div key={idx} className="ds-slot">
                                             <input type="time" value={slot.start} onChange={(e) => updateSlot(day, idx, "start", e.target.value)} />
                                             <span className="ds-slot-sep">to</span>
                                             <input type="time" value={slot.end} onChange={(e) => updateSlot(day, idx, "end", e.target.value)} />
-                                            {schedule[day].slots.length > 1 && (
+                                            {(schedule[day]?.slots?.length || 0) > 1 && (
                                                 <button type="button" className="ds-slot-remove" onClick={() => removeSlot(day, idx)}><X size={14} /></button>
                                             )}
                                         </div>
@@ -278,9 +278,7 @@ function AvailabilitySection() {
 }
 
 // ────────────────────────── CONSULTATION SETTINGS ──────────────────────────
-function ConsultationSection() {
-    const [autoApproval, setAutoApproval] = useState(true);
-    const [onlineConsultation, setOnlineConsultation] = useState(true);
+function ConsultationSection({ data, onChange }) {
     return (
         <div className="ds-section" id="consultation">
             <h2 className="ds-section-title"><MessageSquareText size={20} /> Consultation Settings</h2>
@@ -289,19 +287,19 @@ function ConsultationSection() {
             <div className="ds-form-grid">
                 <div className="ds-field">
                     <label>Consultation Duration</label>
-                    <select>
-                        <option>15 minutes</option><option>20 minutes</option><option>30 minutes</option><option>45 minutes</option><option>60 minutes</option>
+                    <select value={data.slotDurationMinutes || 30} onChange={(e) => onChange("slotDurationMinutes", parseInt(e.target.value))}>
+                        <option value={15}>15 minutes</option><option value={20}>20 minutes</option><option value={30}>30 minutes</option><option value={45}>45 minutes</option><option value={60}>60 minutes</option>
                     </select>
                 </div>
                 <div className="ds-field">
                     <label>Follow-up Window</label>
-                    <select>
-                        <option>3 days</option><option>7 days</option><option>14 days</option><option>30 days</option>
+                    <select value={data.followUpWindowDays || 7} onChange={(e) => onChange("followUpWindowDays", parseInt(e.target.value))}>
+                        <option value={3}>3 days</option><option value={7}>7 days</option><option value={14}>14 days</option><option value={30}>30 days</option>
                     </select>
                 </div>
                 <div className="ds-field">
                     <label>Prescription Template</label>
-                    <select>
+                    <select value={data.prescriptionTemplate || "Default Template"} onChange={(e) => onChange("prescriptionTemplate", e.target.value)}>
                         <option>Default Template</option><option>Cardiology Template</option><option>Custom Template</option>
                     </select>
                 </div>
@@ -313,14 +311,14 @@ function ConsultationSection() {
                         <span className="ds-toggle-label">Auto-Approve Appointments</span>
                         <span className="ds-toggle-hint">Automatically confirm patient bookings</span>
                     </div>
-                    <Toggle checked={autoApproval} onChange={setAutoApproval} />
+                    <Toggle checked={data.autoApproveAppointments ?? true} onChange={(v) => onChange("autoApproveAppointments", v)} />
                 </div>
                 <div className="ds-toggle-card">
                     <div>
                         <span className="ds-toggle-label">Online Consultation</span>
                         <span className="ds-toggle-hint">Enable video / chat consultations</span>
                     </div>
-                    <Toggle checked={onlineConsultation} onChange={setOnlineConsultation} />
+                    <Toggle checked={data.onlineConsultationEnabled ?? true} onChange={(v) => onChange("onlineConsultationEnabled", v)} />
                 </div>
             </div>
         </div>
@@ -328,13 +326,7 @@ function ConsultationSection() {
 }
 
 // ────────────────────────── NOTIFICATIONS ──────────────────────────
-function NotificationsSection() {
-    const [prefs, setPrefs] = useState({
-        newAppointment: true, messages: true, prescriptionReminders: true,
-        followUpReminders: true, systemUpdates: false, emailNotifs: true, pushNotifs: true,
-    });
-    const toggle = (key) => setPrefs((p) => ({ ...p, [key]: !p[key] }));
-
+function NotificationsSection({ data, onChange }) {
     const items = [
         { key: "newAppointment", label: "New Appointment Alerts", desc: "Get notified when a patient books" },
         { key: "messages", label: "Messages", desc: "Notifications for new patient messages" },
@@ -357,7 +349,7 @@ function NotificationsSection() {
                             <span className="ds-toggle-label">{it.label}</span>
                             <span className="ds-toggle-hint">{it.desc}</span>
                         </div>
-                        <Toggle checked={prefs[it.key]} onChange={() => toggle(it.key)} />
+                        <Toggle checked={data[it.key] ?? true} onChange={(v) => onChange(it.key, v)} />
                     </div>
                 ))}
             </div>
@@ -366,17 +358,18 @@ function NotificationsSection() {
 }
 
 // ────────────────────────── DOCUMENTS ──────────────────────────
-function DocumentsSection() {
-    const docs = [
-        { name: "Medical License", status: "verified", file: "medical_license.pdf" },
-        { name: "Board Certification", status: "pending", file: "board_cert.pdf" },
-        { name: "Government ID", status: "not_uploaded", file: null },
-    ];
+function DocumentsSection({ documents }) {
     const statusMap = {
-        verified: { label: "Verified", cls: "verified", icon: CheckCircle2 },
-        pending: { label: "Pending Review", cls: "pending", icon: Clock },
-        not_uploaded: { label: "Not Uploaded", cls: "missing", icon: Upload },
+        VERIFIED: { label: "Verified", cls: "verified", icon: CheckCircle2 },
+        PENDING: { label: "Pending Review", cls: "pending", icon: Clock },
+        NOT_UPLOADED: { label: "Not Uploaded", cls: "missing", icon: Upload },
     };
+
+    const docTypes = [
+        { type: "LICENSE", name: "Medical License" },
+        { type: "DEGREE", name: "Degree Certificate" },
+        { type: "ID_PROOF", name: "Government ID" },
+    ];
 
     return (
         <div className="ds-section" id="documents">
@@ -384,22 +377,35 @@ function DocumentsSection() {
             <p className="ds-section-desc">Upload your credentials for verification</p>
 
             <div className="ds-doc-list">
-                {docs.map((doc) => {
-                    const st = statusMap[doc.status];
+                {docTypes.map((docDef) => {
+                    const doc = documents.find(d => d.type === docDef.type);
+                    const status = doc ? "VERIFIED" : "NOT_UPLOADED";
+                    const st = statusMap[status] || statusMap.NOT_UPLOADED;
                     const StIcon = st.icon;
                     return (
-                        <div key={doc.name} className="ds-doc-card">
+                        <div key={docDef.type} className="ds-doc-card">
                             <div className="ds-doc-info">
-                                <span className="ds-doc-name">{doc.name}</span>
-                                {doc.file && <span className="ds-doc-file">{doc.file}</span>}
+                                <span className="ds-doc-name">{docDef.name}</span>
+                                {doc && <span className="ds-doc-file">{docDef.type.toLowerCase()}</span>}
                             </div>
                             <div className="ds-doc-actions">
                                 <span className={`ds-doc-status ${st.cls}`}>
                                     <StIcon size={13} /> {st.label}
                                 </span>
                                 <label className="ds-upload-btn">
-                                    <Upload size={13} /> {doc.file ? "Re-upload" : "Upload"}
-                                    <input type="file" hidden />
+                                    <Upload size={13} /> {doc ? "Re-upload" : "Upload"}
+                                    <input type="file" hidden onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file) return;
+                                        const formData = new FormData();
+                                        formData.append("file", file);
+                                        try {
+                                            await fetch(`${API_BASE_URL}/api/users/me/documents/${docDef.type}`, {
+                                                method: "POST", credentials: "include", body: formData,
+                                            });
+                                            toast.success(`${docDef.name} uploaded`);
+                                        } catch { toast.error("Upload failed"); }
+                                    }} />
                                 </label>
                             </div>
                         </div>
@@ -411,15 +417,29 @@ function DocumentsSection() {
 }
 
 // ────────────────────────── SECURITY ──────────────────────────
-function SecuritySection() {
+function SecuritySection({ twoFa, onTwoFaChange }) {
     const [showOld, setShowOld] = useState(false);
     const [showNew, setShowNew] = useState(false);
-    const [twoFa, setTwoFa] = useState(false);
+    const [passwords, setPasswords] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    const [changingPw, setChangingPw] = useState(false);
 
-    const sessions = [
-        { device: "Chrome — Windows 10", location: "Mumbai, India", current: true },
-        { device: "Safari — iPhone 14", location: "Mumbai, India", current: false },
-    ];
+    const handleChangePassword = async () => {
+        if (!passwords.currentPassword || !passwords.newPassword || !passwords.confirmPassword) {
+            toast.error("Please fill all password fields"); return;
+        }
+        if (passwords.newPassword !== passwords.confirmPassword) {
+            toast.error("New password and confirm password do not match"); return;
+        }
+        setChangingPw(true);
+        try {
+            await api("/api/doctor/settings/security/change-password", {
+                method: "POST", body: JSON.stringify(passwords),
+            });
+            toast.success("Password changed successfully");
+            setPasswords({ currentPassword: "", newPassword: "", confirmPassword: "" });
+        } catch (e) { toast.error(e.message || "Failed to change password"); }
+        setChangingPw(false);
+    };
 
     return (
         <div className="ds-section" id="security">
@@ -432,7 +452,7 @@ function SecuritySection() {
                     <div className="ds-field ds-full">
                         <label>Current Password</label>
                         <div className="ds-input-icon">
-                            <input type={showOld ? "text" : "password"} placeholder="Enter current password" />
+                            <input type={showOld ? "text" : "password"} value={passwords.currentPassword} onChange={(e) => setPasswords(p => ({ ...p, currentPassword: e.target.value }))} placeholder="Enter current password" />
                             <button type="button" className="ds-eye-btn" onClick={() => setShowOld(!showOld)}>
                                 {showOld ? <EyeOff size={15} /> : <Eye size={15} />}
                             </button>
@@ -441,7 +461,7 @@ function SecuritySection() {
                     <div className="ds-field ds-full">
                         <label>New Password</label>
                         <div className="ds-input-icon">
-                            <input type={showNew ? "text" : "password"} placeholder="Enter new password" />
+                            <input type={showNew ? "text" : "password"} value={passwords.newPassword} onChange={(e) => setPasswords(p => ({ ...p, newPassword: e.target.value }))} placeholder="Enter new password" />
                             <button type="button" className="ds-eye-btn" onClick={() => setShowNew(!showNew)}>
                                 {showNew ? <EyeOff size={15} /> : <Eye size={15} />}
                             </button>
@@ -449,8 +469,11 @@ function SecuritySection() {
                     </div>
                     <div className="ds-field ds-full">
                         <label>Confirm New Password</label>
-                        <input type="password" placeholder="Confirm new password" />
+                        <input type="password" value={passwords.confirmPassword} onChange={(e) => setPasswords(p => ({ ...p, confirmPassword: e.target.value }))} placeholder="Confirm new password" />
                     </div>
+                    <button type="button" className="ds-save-btn" onClick={handleChangePassword} disabled={changingPw} style={{ marginTop: 8, width: "fit-content" }}>
+                        {changingPw ? "Changing..." : "Update Password"}
+                    </button>
                 </div>
             </div>
 
@@ -460,36 +483,15 @@ function SecuritySection() {
                         <span className="ds-toggle-label">Two-Factor Authentication</span>
                         <span className="ds-toggle-hint">Add an extra layer of security to your account</span>
                     </div>
-                    <Toggle checked={twoFa} onChange={setTwoFa} />
+                    <Toggle checked={twoFa} onChange={onTwoFaChange} />
                 </div>
-            </div>
-
-            <div className="ds-subsection">
-                <h3 className="ds-subsection-title">Active Sessions</h3>
-                <div className="ds-sessions">
-                    {sessions.map((s, i) => (
-                        <div key={i} className="ds-session-item">
-                            <div className="ds-session-info">
-                                <span className="ds-session-device">{s.device} {s.current && <span className="ds-current-badge">Current</span>}</span>
-                                <span className="ds-session-loc">{s.location}</span>
-                            </div>
-                            {!s.current && <button type="button" className="ds-logout-session-btn"><LogOut size={14} /> Revoke</button>}
-                        </div>
-                    ))}
-                </div>
-                <button type="button" className="ds-danger-outline-btn"><LogOut size={14} /> Logout from All Other Devices</button>
             </div>
         </div>
     );
 }
 
 // ────────────────────────── PRIVACY ──────────────────────────
-function PrivacySection() {
-    const [prefs, setPrefs] = useState({
-        profileVisible: true, allowReviews: true, showContact: false, dataSharing: false,
-    });
-    const toggle = (key) => setPrefs((p) => ({ ...p, [key]: !p[key] }));
-
+function PrivacySection({ data, onChange }) {
     const items = [
         { key: "profileVisible", label: "Profile Visibility", desc: "Allow patients to view your profile" },
         { key: "allowReviews", label: "Allow Patient Reviews", desc: "Let patients leave public reviews" },
@@ -509,7 +511,7 @@ function PrivacySection() {
                             <span className="ds-toggle-label">{it.label}</span>
                             <span className="ds-toggle-hint">{it.desc}</span>
                         </div>
-                        <Toggle checked={prefs[it.key]} onChange={() => toggle(it.key)} />
+                        <Toggle checked={data[it.key] ?? false} onChange={(v) => onChange(it.key, v)} />
                     </div>
                 ))}
             </div>
@@ -521,6 +523,23 @@ function PrivacySection() {
 function AccountSection() {
     const [showDeactivate, setShowDeactivate] = useState(false);
     const [showDelete, setShowDelete] = useState(false);
+    const { logout } = useAuth();
+
+    const handleDeactivate = async () => {
+        try {
+            await api("/api/doctor/settings/account/deactivate", { method: "POST" });
+            toast.success("Account deactivated");
+            logout();
+        } catch (e) { toast.error(e.message); }
+    };
+
+    const handleDelete = async () => {
+        try {
+            await api("/api/doctor/settings/account/delete", { method: "POST" });
+            toast.success("Account deletion requested");
+            logout();
+        } catch (e) { toast.error(e.message); }
+    };
 
     return (
         <div className="ds-section" id="account">
@@ -551,7 +570,6 @@ function AccountSection() {
                 </div>
             </div>
 
-            {/* Destructive action modal */}
             {(showDeactivate || showDelete) && (
                 <div className="ds-modal-overlay" onClick={() => { setShowDeactivate(false); setShowDelete(false); }}>
                     <div className="ds-modal" onClick={(e) => e.stopPropagation()}>
@@ -563,7 +581,7 @@ function AccountSection() {
                         }</p>
                         <div className="ds-modal-actions">
                             <button type="button" className="ds-cancel-btn" onClick={() => { setShowDeactivate(false); setShowDelete(false); }}>Cancel</button>
-                            <button type="button" className={showDelete ? "ds-danger-btn" : "ds-danger-outline-btn"}>
+                            <button type="button" className={showDelete ? "ds-danger-btn" : "ds-danger-outline-btn"} onClick={showDelete ? handleDelete : handleDeactivate}>
                                 {showDelete ? "Yes, Delete Permanently" : "Yes, Deactivate"}
                             </button>
                         </div>
@@ -576,87 +594,169 @@ function AccountSection() {
 
 // ────────────────────────── MAIN PAGE ──────────────────────────
 export default function DoctorSettingsPage() {
+    const { user } = useAuth();
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
     const [dirty, setDirty] = useState(false);
     const [saved, setSaved] = useState(false);
-    const contentRef = useRef(null);
 
-    useEffect(() => {
-        const handler = () => setDirty(true);
-        const el = contentRef.current;
-        if (el) {
-            el.addEventListener("input", handler);
-            el.addEventListener("change", handler);
-        }
-        return () => {
-            if (el) {
-                el.removeEventListener("input", handler);
-                el.removeEventListener("change", handler);
+    // Section state
+    const [profile, setProfile] = useState({});
+    const [professional, setProfessional] = useState({});
+    const [clinics, setClinics] = useState([]);
+    const [clinicForm, setClinicForm] = useState({ clinicName: "", address: "", city: "" });
+    const [availability, setAvailability] = useState({});
+    const [consultation, setConsultation] = useState({});
+    const [notifPrefs, setNotifPrefs] = useState({});
+    const [privacyPrefs, setPrivacyPrefs] = useState({});
+    const [twoFa, setTwoFa] = useState(false);
+    const [documents, setDocuments] = useState([]);
+
+    const profileImageRef = useRef(null);
+
+    // ── Load all settings on mount ──
+    const loadSettings = useCallback(async () => {
+        if (!user) return;
+        setLoading(true);
+        try {
+            const [profileRes, settingsRes, docsRes] = await Promise.allSettled([
+                api("/api/users/profile"),
+                api("/api/doctor/settings"),
+                api("/api/users/me/required-documents"),
+            ]);
+
+            if (profileRes.status === "fulfilled") setProfile(profileRes.value || {});
+            if (settingsRes.status === "fulfilled") {
+                const s = settingsRes.value || {};
+                setProfessional(s.professional || {});
+                setClinics(s.clinics || []);
+                setAvailability(s.availability || {});
+                setConsultation(s.consultation || {});
+                setNotifPrefs(s.notifications || {});
+                setPrivacyPrefs(s.privacy || {});
+                setTwoFa(s.security?.twoFactorEnabled || false);
             }
-        };
-    }, []);
-
-    const handleSave = async () => {
-        setSaved(false);
-        setDirty(false);
-
-        const el = contentRef.current;
-        if (!el) return;
-
-        // Collect data from uncontrolled inputs in the Profile section
-        const profileSection = el.querySelector("#profile");
-        const nameInput = profileSection?.querySelector('input[type="text"]');
-        const phoneInput = profileSection?.querySelector('input[type="tel"]');
-        const genderSelect = profileSection?.querySelector("select");
-        const dobInput = profileSection?.querySelector('input[type="date"]');
-        const bioTextarea = profileSection?.querySelector("textarea");
-        const photoInput = profileSection?.querySelector('input[type="file"]');
-
-        const profileData = {};
-        if (nameInput?.value) profileData.name = nameInput.value;
-        if (phoneInput?.value) profileData.phone = phoneInput.value;
-        if (genderSelect?.value) profileData.gender = genderSelect.value.toUpperCase();
-        if (dobInput?.value) profileData.dob = dobInput.value;
-        if (bioTextarea?.value) profileData.bio = bioTextarea.value;
-
-        const formData = new FormData();
-        formData.append("profile", new Blob([JSON.stringify(profileData)], { type: "application/json" }));
-
-        if (photoInput?.files?.[0]) {
-            formData.append("profileImage", photoInput.files[0]);
+            if (docsRes.status === "fulfilled") setDocuments(docsRes.value || []);
+        } catch (e) {
+            console.error("Failed to load settings", e);
         }
+        setLoading(false);
+        setDirty(false);
+    }, [user]);
+
+    useEffect(() => { loadSettings(); }, [loadSettings]);
+
+    // ── Change handlers ──
+    const handleProfileChange = (key, val) => {
+        if (key === "_profileImage") { profileImageRef.current = val; }
+        else { setProfile(p => ({ ...p, [key]: val })); }
+        setDirty(true);
+    };
+    const handleProfChange = (key, val) => { setProfessional(p => ({ ...p, [key]: val })); setDirty(true); };
+    const handleAvailChange = (key, val) => { setAvailability(p => ({ ...p, [key]: val })); setDirty(true); };
+    const handleConsultChange = (key, val) => { setConsultation(p => ({ ...p, [key]: val })); setDirty(true); };
+    const handleNotifChange = (key, val) => { setNotifPrefs(p => ({ ...p, [key]: val })); setDirty(true); };
+    const handlePrivacyChange = (key, val) => { setPrivacyPrefs(p => ({ ...p, [key]: val })); setDirty(true); };
+    const handleClinicFormChange = (key, val) => { setClinicForm(p => ({ ...p, [key]: val })); };
+
+    const handleTwoFaChange = async (val) => {
+        try {
+            await api("/api/doctor/settings/security/two-factor", {
+                method: "PUT", body: JSON.stringify({ enabled: val }),
+            });
+            setTwoFa(val);
+            toast.success("Two-factor setting updated");
+        } catch (e) { toast.error(e.message); }
+    };
+
+    const handleAddClinic = async () => {
+        if (!clinicForm.clinicName) { toast.error("Clinic name is required"); return; }
+        try {
+            const newClinic = await api("/api/doctor/settings/clinics", {
+                method: "POST", body: JSON.stringify(clinicForm),
+            });
+            setClinics(prev => [...prev, newClinic]);
+            setClinicForm({ clinicName: "", address: "", city: "" });
+            toast.success("Location added");
+        } catch (e) { toast.error(e.message); }
+    };
+
+    const handleDeleteClinic = async (id) => {
+        try {
+            await api(`/api/doctor/settings/clinics/${id}`, { method: "DELETE" });
+            setClinics(prev => prev.filter(c => c.id !== id));
+            toast.success("Location removed");
+        } catch (e) { toast.error(e.message); }
+    };
+
+    // ── Save all sections ──
+    const handleSave = async () => {
+        setSaving(true);
+        setSaved(false);
 
         try {
-            const { API_BASE_URL } = await import("@/lib/config");
-            const res = await fetch(`${API_BASE_URL}/api/users/profile`, {
-                method: "PATCH",
-                credentials: "include",
-                body: formData,
-            });
-            const data = await res.json();
+            // 1. Profile
+            const formData = new FormData();
+            const profilePayload = {};
+            if (profile.name) profilePayload.name = profile.name;
+            if (profile.phone) profilePayload.phone = profile.phone;
+            if (profile.gender) profilePayload.gender = profile.gender;
+            if (profile.dob) profilePayload.dob = profile.dob;
+            if (profile.bio !== undefined) profilePayload.bio = profile.bio;
+            formData.append("profile", new Blob([JSON.stringify(profilePayload)], { type: "application/json" }));
+            if (profileImageRef.current) formData.append("profileImage", profileImageRef.current);
+            await fetch(`${API_BASE_URL}/api/users/profile`, { method: "PATCH", credentials: "include", body: formData });
 
-            if (res.ok && data.success) {
-                setSaved(true);
-                setTimeout(() => setSaved(false), 2500);
-            } else {
-                alert(data.message || "Failed to save profile. Please try again.");
-            }
-        } catch {
-            alert("Unable to connect to the server. Please try again.");
+            // 2. Professional
+            await api("/api/doctor/settings/professional", { method: "PUT", body: JSON.stringify(professional) });
+
+            // 3. Availability
+            await api("/api/doctor/settings/availability", { method: "PUT", body: JSON.stringify(availability) });
+
+            // 4. Consultation
+            await api("/api/doctor/settings/consultation", { method: "PUT", body: JSON.stringify(consultation) });
+
+            // 5. Notification prefs
+            await api("/api/doctor/settings/notifications", { method: "PUT", body: JSON.stringify({ prefs: notifPrefs }) });
+
+            // 6. Privacy
+            await api("/api/doctor/settings/privacy", { method: "PUT", body: JSON.stringify({ settings: privacyPrefs }) });
+
+            setDirty(false);
+            setSaved(true);
+            toast.success("All settings saved!");
+            setTimeout(() => setSaved(false), 2500);
+        } catch (e) {
+            toast.error(e.message || "Failed to save settings");
         }
+        setSaving(false);
     };
+
+    if (loading) {
+        return (
+            <div className="ds-page">
+                <div className="ds-content" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}>
+                    <div style={{ textAlign: "center", color: "#94a3b8" }}>
+                        <div className="ds-spinner" />
+                        <p>Loading settings...</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="ds-page">
-            <div className="ds-content" ref={contentRef}>
-                <ProfileSection />
-                <ProfessionalSection />
-                <ClinicSection />
-                <AvailabilitySection />
-                <ConsultationSection />
-                <NotificationsSection />
-                <DocumentsSection />
-                <SecuritySection />
-                <PrivacySection />
+            <div className="ds-content">
+                <ProfileSection data={profile} onChange={handleProfileChange} />
+                <ProfessionalSection data={professional} onChange={handleProfChange} />
+                <ClinicSection clinics={clinics} onAddClinic={handleAddClinic} onDeleteClinic={handleDeleteClinic} clinicForm={clinicForm} onClinicFormChange={handleClinicFormChange} />
+                <AvailabilitySection data={availability} onChange={handleAvailChange} />
+                <ConsultationSection data={consultation} onChange={handleConsultChange} />
+                <NotificationsSection data={notifPrefs} onChange={handleNotifChange} />
+                <DocumentsSection documents={documents} />
+                <SecuritySection twoFa={twoFa} onTwoFaChange={handleTwoFaChange} />
+                <PrivacySection data={privacyPrefs} onChange={handlePrivacyChange} />
                 <AccountSection />
             </div>
 
@@ -669,8 +769,10 @@ export default function DoctorSettingsPage() {
                         <>
                             <span className="ds-unsaved-msg">You have unsaved changes</span>
                             <div className="ds-save-actions">
-                                <button type="button" className="ds-discard-btn" onClick={() => setDirty(false)}><RotateCcw size={14} /> Discard</button>
-                                <button type="button" className="ds-save-btn" onClick={handleSave}><Save size={14} /> Save Changes</button>
+                                <button type="button" className="ds-discard-btn" onClick={loadSettings}><RotateCcw size={14} /> Discard</button>
+                                <button type="button" className="ds-save-btn" onClick={handleSave} disabled={saving}>
+                                    <Save size={14} /> {saving ? "Saving..." : "Save Changes"}
+                                </button>
                             </div>
                         </>
                     )}
