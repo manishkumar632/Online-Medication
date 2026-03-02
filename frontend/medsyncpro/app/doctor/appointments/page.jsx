@@ -1,39 +1,28 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useAuth } from "../../context/AuthContext";
+import { API_BASE_URL } from "@/lib/config";
+import RouteGuard from "../../components/RouteGuard";
 import {
-    Search, Plus, X, ChevronLeft, ChevronRight, Clock, Calendar, CalendarDays,
-    CalendarRange, User, Video, Building2, Phone, Mail, MapPin, AlertTriangle,
-    Pill, StickyNote, Send, Eye, Play, RefreshCw, Trash2, CheckCircle2,
-    CircleAlert, Timer, ArrowUpDown, Filter, FileText, Stethoscope,
-    ClipboardList, CalendarCheck, CalendarX, CalendarClock, Users, Activity,
-    Heart, Thermometer, ChevronDown, MoreHorizontal, Flag, Star, XCircle
+    Search, Plus, X, Clock, Calendar, CalendarDays,
+    User, Video, Building2, Phone, Mail,
+    Pill, StickyNote, Send, Eye, Play, RefreshCw, CheckCircle2,
+    Timer, Filter, FileText, Stethoscope,
+    ClipboardList, CalendarCheck, CalendarX, CalendarClock,
+    XCircle, CircleAlert, ChevronDown, MessageSquare, Check, Loader2, AlertTriangle
 } from "lucide-react";
 import "../doctor-appointments.css";
 
-// ─── Mock Data ───
-const HOURS = Array.from({ length: 12 }, (_, i) => i + 8); // 8 AM to 7 PM
-
-const APPOINTMENTS = [
-    { id: 1, patient: "Sarah Johnson", age: 34, gender: "F", avatar: "SJ", color: "#0d9488", condition: "Hypertension", time: "09:00", endTime: "09:30", type: "in-person", status: "completed", date: "2026-02-25", phone: "+91 98765 43210", email: "sarah.j@email.com", reason: "Regular BP check-up", notes: "BP trending down, continue current medication" },
-    { id: 2, patient: "Michael Chen", age: 45, gender: "M", avatar: "MC", color: "#dc2626", condition: "Coronary Artery Disease", time: "09:30", endTime: "10:00", type: "in-person", status: "completed", date: "2026-02-25", phone: "+91 98123 45678", email: "m.chen@email.com", reason: "Post-intervention follow-up", notes: "Recovery on track. Next ECG in 2 weeks." },
-    { id: 3, patient: "Emma Wilson", age: 28, gender: "F", avatar: "EW", color: "#8b5cf6", condition: "Arrhythmia", time: "10:30", endTime: "11:00", type: "online", status: "in-progress", date: "2026-02-25", phone: "+91 91234 56780", email: "emma.w@email.com", reason: "Medication review", notes: "" },
-    { id: 4, patient: "James Brown", age: 52, gender: "M", avatar: "JB", color: "#ef4444", condition: "Heart Failure", time: "11:00", endTime: "11:30", type: "in-person", status: "confirmed", date: "2026-02-25", phone: "+91 87654 32109", email: "j.brown@email.com", reason: "Routine cardiac evaluation", notes: "" },
-    { id: 5, patient: "Priya Sharma", age: 42, gender: "F", avatar: "PS", color: "#2563eb", condition: "Atrial Fibrillation", time: "11:30", endTime: "12:00", type: "online", status: "scheduled", date: "2026-02-25", phone: "+91 54321 09876", email: "priya.s@email.com", reason: "Anticoagulation management", notes: "" },
-    { id: 6, patient: "Lisa Anderson", age: 39, gender: "F", avatar: "LA", color: "#059669", condition: "Hyperlipidemia", time: "14:00", endTime: "14:30", type: "in-person", status: "scheduled", date: "2026-02-25", phone: "+91 76543 21098", email: "lisa.a@email.com", reason: "Lipid panel review", notes: "" },
-    { id: 7, patient: "Robert Taylor", age: 61, gender: "M", avatar: "RT", color: "#f59e0b", condition: "Post-CABG Recovery", time: "14:30", endTime: "15:00", type: "in-person", status: "scheduled", date: "2026-02-25", phone: "+91 65432 10987", email: "r.taylor@email.com", reason: "Post-surgery follow-up", notes: "" },
-    { id: 8, patient: "David Kim", age: 55, gender: "M", avatar: "DK", color: "#dc2626", condition: "Aortic Stenosis", time: "15:30", endTime: "16:00", type: "in-person", status: "scheduled", date: "2026-02-25", phone: "+91 43210 98765", email: "d.kim@email.com", reason: "Pre-surgical assessment", notes: "" },
-    { id: 9, patient: "Anita Patel", age: 30, gender: "F", avatar: "AP", color: "#6366f1", condition: "Mitral Valve Prolapse", time: "16:00", endTime: "16:30", type: "online", status: "scheduled", date: "2026-02-25", phone: "+91 32109 87654", email: "a.patel@email.com", reason: "New patient consultation", notes: "" },
-    { id: 10, patient: "Thomas Lee", age: 68, gender: "M", avatar: "TL", color: "#f97316", condition: "Peripheral Artery Disease", time: "17:00", endTime: "17:30", type: "in-person", status: "cancelled", date: "2026-02-25", phone: "+91 21098 76543", email: "t.lee@email.com", reason: "Medication adjustment", notes: "Patient cancelled due to travel" },
-];
+const HOURS = Array.from({ length: 12 }, (_, i) => i + 8);
 
 const STATUS_CONFIG = {
-    scheduled: { label: "Scheduled", cls: "scheduled", icon: CalendarClock },
-    confirmed: { label: "Confirmed", cls: "confirmed", icon: CalendarCheck },
-    "in-progress": { label: "In Progress", cls: "inprogress", icon: Play },
-    completed: { label: "Completed", cls: "completed", icon: CheckCircle2 },
-    cancelled: { label: "Cancelled", cls: "cancelled", icon: XCircle },
-    missed: { label: "Missed", cls: "missed", icon: CircleAlert },
-    followup: { label: "Follow-up", cls: "followup", icon: RefreshCw },
+    REQUESTED: { label: "Requested", cls: "scheduled", icon: CalendarClock },
+    CONFIRMED: { label: "Confirmed", cls: "confirmed", icon: CalendarCheck },
+    IN_PROGRESS: { label: "In Progress", cls: "inprogress", icon: Play },
+    COMPLETED: { label: "Completed", cls: "completed", icon: CheckCircle2 },
+    CANCELLED: { label: "Cancelled", cls: "cancelled", icon: XCircle },
+    REJECTED: { label: "Rejected", cls: "cancelled", icon: XCircle },
+    NO_SHOW: { label: "No Show", cls: "missed", icon: CircleAlert },
 };
 
 const VIEWS = [
@@ -41,52 +30,61 @@ const VIEWS = [
     { id: "list", label: "List", icon: ClipboardList },
 ];
 
-const STATUS_FILTERS = ["All", "Scheduled", "Confirmed", "In Progress", "Completed", "Cancelled"];
+const STATUS_FILTERS = ["All", "Requested", "Confirmed", "In Progress", "Completed", "Cancelled"];
+const STATUS_MAP = { Requested: "REQUESTED", Confirmed: "CONFIRMED", "In Progress": "IN_PROGRESS", Completed: "COMPLETED", Cancelled: "CANCELLED" };
 
-// ─── Helpers ───
 function StatusBadge({ status }) {
-    const s = STATUS_CONFIG[status] || STATUS_CONFIG.scheduled;
+    const s = STATUS_CONFIG[status] || STATUS_CONFIG.REQUESTED;
     const Icon = s.icon;
     return <span className={`da-status-badge ${s.cls}`}><Icon size={11} /> {s.label}</span>;
 }
 
 function TypeBadge({ type }) {
     return (
-        <span className={`da-type-badge ${type}`}>
-            {type === "online" ? <Video size={11} /> : <Building2 size={11} />}
-            {type === "online" ? "Online" : "In-person"}
+        <span className={`da-type-badge ${type === "VIDEO" ? "online" : "in-person"}`}>
+            {type === "VIDEO" ? <Video size={11} /> : type === "CHAT" ? <MessageSquare size={11} /> : <Building2 size={11} />}
+            {type === "VIDEO" ? "Video" : type === "IN_PERSON" ? "In-person" : "Chat"}
         </span>
     );
 }
 
-function formatTime(t) {
+function formatTime12(t) {
+    if (!t) return "";
     const [h, m] = t.split(":").map(Number);
     const period = h >= 12 ? "PM" : "AM";
     const hour = h > 12 ? h - 12 : h === 0 ? 12 : h;
     return `${hour}:${m.toString().padStart(2, "0")} ${period}`;
 }
 
-// ═══════════════════════════════════════════════════
-//  SUMMARY CARDS
-// ═══════════════════════════════════════════════════
+function getInitials(name) {
+    if (!name) return "?";
+    return name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
+}
+
+function getColor(name) {
+    const colors = ["#0d9488", "#dc2626", "#8b5cf6", "#ef4444", "#2563eb", "#059669", "#f59e0b", "#6366f1", "#f97316", "#06b6d4"];
+    let hash = 0;
+    for (let i = 0; i < (name || "").length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    return colors[Math.abs(hash) % colors.length];
+}
+
+// ═══ Summary Cards ═══
 function SummaryCards({ appointments }) {
     const total = appointments.length;
-    const completed = appointments.filter((a) => a.status === "completed").length;
-    const pending = appointments.filter((a) => ["scheduled", "confirmed"].includes(a.status)).length;
-    const inProgress = appointments.filter((a) => a.status === "in-progress").length;
-    const cancelled = appointments.filter((a) => a.status === "cancelled").length;
-
+    const completed = appointments.filter(a => a.status === "COMPLETED").length;
+    const pending = appointments.filter(a => ["REQUESTED", "CONFIRMED"].includes(a.status)).length;
+    const inProgress = appointments.filter(a => a.status === "IN_PROGRESS").length;
+    const cancelled = appointments.filter(a => ["CANCELLED", "REJECTED"].includes(a.status)).length;
     const cards = [
-        { label: "Total Today", value: total, icon: CalendarDays, cls: "total" },
+        { label: "Total", value: total, icon: CalendarDays, cls: "total" },
         { label: "Completed", value: completed, icon: CheckCircle2, cls: "completed" },
         { label: "In Progress", value: inProgress, icon: Play, cls: "inprogress" },
         { label: "Pending", value: pending, icon: Timer, cls: "pending" },
         { label: "Cancelled", value: cancelled, icon: XCircle, cls: "cancelled" },
     ];
-
     return (
         <div className="da-summary-row">
-            {cards.map((c) => (
+            {cards.map(c => (
                 <div key={c.label} className={`da-summary-card ${c.cls}`}>
                     <div className="da-summary-icon"><c.icon size={18} /></div>
                     <div>
@@ -99,21 +97,18 @@ function SummaryCards({ appointments }) {
     );
 }
 
-// ═══════════════════════════════════════════════════
-//  NEXT APPOINTMENT WIDGET
-// ═══════════════════════════════════════════════════
+// ═══ Next Appointment ═══
 function NextAppointmentCard({ appointments }) {
-    const next = appointments.find((a) => ["scheduled", "confirmed"].includes(a.status));
+    const next = appointments.find(a => ["REQUESTED", "CONFIRMED"].includes(a.status));
     if (!next) return null;
-
     return (
         <div className="da-next-card">
             <div className="da-next-label"><Clock size={13} /> Next Appointment</div>
             <div className="da-next-info">
-                <div className="da-next-avatar" style={{ background: next.color }}>{next.avatar}</div>
+                <div className="da-next-avatar" style={{ background: getColor(next.patientName) }}>{getInitials(next.patientName)}</div>
                 <div>
-                    <span className="da-next-name">{next.patient}</span>
-                    <span className="da-next-meta">{formatTime(next.time)} – {formatTime(next.endTime)} · {next.reason}</span>
+                    <span className="da-next-name">{next.patientName || "Patient"}</span>
+                    <span className="da-next-meta">{formatTime12(next.scheduledTime)}{next.endTime ? ` – ${formatTime12(next.endTime)}` : ""} · {next.symptoms || "Consultation"}</span>
                 </div>
                 <TypeBadge type={next.type} />
             </div>
@@ -121,53 +116,49 @@ function NextAppointmentCard({ appointments }) {
     );
 }
 
-// ═══════════════════════════════════════════════════
-//  DAY TIMELINE VIEW
-// ═══════════════════════════════════════════════════
-function DayTimeline({ appointments, onSelect }) {
+// ═══ Day Timeline ═══
+function DayTimeline({ appointments, onSelect, onAction }) {
     return (
         <div className="da-timeline">
             <div className="da-timeline-grid">
-                {HOURS.map((hour) => {
-                    const hourAppts = appointments.filter((a) => {
-                        const h = parseInt(a.time.split(":")[0]);
-                        return h === hour;
+                {HOURS.map(hour => {
+                    const hourAppts = appointments.filter(a => {
+                        if (!a.scheduledTime) return false;
+                        return parseInt(a.scheduledTime.split(":")[0]) === hour;
                     });
                     const timeLabel = `${hour > 12 ? hour - 12 : hour}:00 ${hour >= 12 ? "PM" : "AM"}`;
-
                     return (
                         <div key={hour} className="da-timeline-row">
                             <div className="da-timeline-time">{timeLabel}</div>
                             <div className="da-timeline-slot">
                                 <div className="da-timeline-line" />
-                                {hourAppts.map((appt) => (
-                                    <div
-                                        key={appt.id}
-                                        className={`da-timeline-card ${appt.status} ${appt.type}`}
-                                        onClick={() => onSelect(appt)}
-                                    >
+                                {hourAppts.map(appt => (
+                                    <div key={appt.id} className={`da-timeline-card ${STATUS_CONFIG[appt.status]?.cls || "scheduled"} ${appt.type === "VIDEO" ? "online" : "in-person"}`} onClick={() => onSelect(appt)}>
                                         <div className="da-tc-header">
                                             <div className="da-tc-patient">
-                                                <div className="da-tc-avatar" style={{ background: appt.color }}>{appt.avatar}</div>
+                                                <div className="da-tc-avatar" style={{ background: getColor(appt.patientName) }}>{getInitials(appt.patientName)}</div>
                                                 <div>
-                                                    <span className="da-tc-name">{appt.patient}</span>
-                                                    <span className="da-tc-condition">{appt.condition}</span>
+                                                    <span className="da-tc-name">{appt.patientName || "Patient"}</span>
+                                                    <span className="da-tc-condition">{appt.symptoms ? (appt.symptoms.length > 30 ? appt.symptoms.substring(0, 30) + "…" : appt.symptoms) : "Consultation"}</span>
                                                 </div>
                                             </div>
                                             <StatusBadge status={appt.status} />
                                         </div>
                                         <div className="da-tc-footer">
-                                            <span className="da-tc-time"><Clock size={11} /> {formatTime(appt.time)} – {formatTime(appt.endTime)}</span>
+                                            <span className="da-tc-time"><Clock size={11} /> {formatTime12(appt.scheduledTime)}{appt.endTime ? ` – ${formatTime12(appt.endTime)}` : ""}</span>
                                             <TypeBadge type={appt.type} />
                                         </div>
                                         <div className="da-tc-actions">
-                                            {["scheduled", "confirmed"].includes(appt.status) && (
-                                                <button className="da-tc-btn start" onClick={(e) => { e.stopPropagation(); }}><Play size={12} /> Start</button>
+                                            {appt.status === "REQUESTED" && (
+                                                <button className="da-tc-btn start" onClick={e => { e.stopPropagation(); onAction("approve", appt); }}><Check size={12} /> Approve</button>
                                             )}
-                                            {appt.status === "in-progress" && (
-                                                <button className="da-tc-btn start" onClick={(e) => { e.stopPropagation(); }}><Play size={12} /> Continue</button>
+                                            {appt.status === "CONFIRMED" && (
+                                                <button className="da-tc-btn start" onClick={e => { e.stopPropagation(); onAction("start", appt); }}><Play size={12} /> Start</button>
                                             )}
-                                            <button className="da-tc-btn" onClick={(e) => { e.stopPropagation(); onSelect(appt); }}><Eye size={12} /> View</button>
+                                            {appt.status === "IN_PROGRESS" && (
+                                                <button className="da-tc-btn start" onClick={e => { e.stopPropagation(); onAction("complete", appt); }}><CheckCircle2 size={12} /> Complete</button>
+                                            )}
+                                            <button className="da-tc-btn" onClick={e => { e.stopPropagation(); onSelect(appt); }}><Eye size={12} /> View</button>
                                         </div>
                                     </div>
                                 ))}
@@ -180,54 +171,51 @@ function DayTimeline({ appointments, onSelect }) {
     );
 }
 
-// ═══════════════════════════════════════════════════
-//  LIST VIEW
-// ═══════════════════════════════════════════════════
-function ListView({ appointments, onSelect }) {
+// ═══ List View ═══
+function ListView({ appointments, onSelect, onAction }) {
     return (
         <div className="da-list-card">
             <table className="da-table">
-                <thead>
-                    <tr>
-                        <th>Time</th>
-                        <th>Patient</th>
-                        <th>Reason</th>
-                        <th>Type</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
+                <thead><tr><th>Time</th><th>Patient</th><th>Reason</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
-                    {appointments.map((appt) => (
-                        <tr key={appt.id} className={appt.status === "cancelled" ? "cancelled-row" : ""} onClick={() => onSelect(appt)}>
+                    {appointments.map(appt => (
+                        <tr key={appt.id} className={["CANCELLED", "REJECTED"].includes(appt.status) ? "cancelled-row" : ""} onClick={() => onSelect(appt)}>
                             <td>
                                 <div className="da-time-cell">
                                     <Clock size={13} />
                                     <div>
-                                        <span className="da-time-main">{formatTime(appt.time)}</span>
-                                        <span className="da-time-end">to {formatTime(appt.endTime)}</span>
+                                        <span className="da-time-main">{formatTime12(appt.scheduledTime)}</span>
+                                        {appt.endTime && <span className="da-time-end">to {formatTime12(appt.endTime)}</span>}
                                     </div>
                                 </div>
                             </td>
                             <td>
                                 <div className="da-patient-cell">
-                                    <div className="da-table-avatar" style={{ background: appt.color }}>{appt.avatar}</div>
+                                    <div className="da-table-avatar" style={{ background: getColor(appt.patientName) }}>{getInitials(appt.patientName)}</div>
                                     <div>
-                                        <span className="da-patient-name">{appt.patient}</span>
-                                        <span className="da-patient-meta">{appt.age}y · {appt.gender} · {appt.condition}</span>
+                                        <span className="da-patient-name">{appt.patientName || "Patient"}</span>
+                                        <span className="da-patient-meta">{appt.patientEmail || ""}</span>
                                     </div>
                                 </div>
                             </td>
-                            <td className="da-reason-cell">{appt.reason}</td>
+                            <td className="da-reason-cell">{appt.symptoms || "–"}</td>
                             <td><TypeBadge type={appt.type} /></td>
                             <td><StatusBadge status={appt.status} /></td>
                             <td>
-                                <div className="da-actions" onClick={(e) => e.stopPropagation()}>
-                                    {["scheduled", "confirmed"].includes(appt.status) && (
-                                        <button className="da-action-btn start" title="Start Consultation"><Play size={14} /></button>
+                                <div className="da-actions" onClick={e => e.stopPropagation()}>
+                                    {appt.status === "REQUESTED" && (
+                                        <>
+                                            <button className="da-action-btn start" title="Approve" onClick={() => onAction("approve", appt)}><Check size={14} /></button>
+                                            <button className="da-action-btn" title="Reject" onClick={() => onAction("reject", appt)}><X size={14} /></button>
+                                        </>
+                                    )}
+                                    {appt.status === "CONFIRMED" && (
+                                        <button className="da-action-btn start" title="Start" onClick={() => onAction("start", appt)}><Play size={14} /></button>
+                                    )}
+                                    {appt.status === "IN_PROGRESS" && (
+                                        <button className="da-action-btn start" title="Complete" onClick={() => onAction("complete", appt)}><CheckCircle2 size={14} /></button>
                                     )}
                                     <button className="da-action-btn" title="View" onClick={() => onSelect(appt)}><Eye size={14} /></button>
-                                    <button className="da-action-btn" title="Reschedule"><RefreshCw size={14} /></button>
                                 </div>
                             </td>
                         </tr>
@@ -238,13 +226,10 @@ function ListView({ appointments, onSelect }) {
     );
 }
 
-// ═══════════════════════════════════════════════════
-//  APPOINTMENT DRAWER
-// ═══════════════════════════════════════════════════
-function AppointmentDrawer({ appt, onClose }) {
+// ═══ Appointment Drawer ═══
+function AppointmentDrawer({ appt, onClose, onAction }) {
     if (!appt) return null;
-
-    const statusSteps = ["scheduled", "confirmed", "in-progress", "completed"];
+    const statusSteps = ["REQUESTED", "CONFIRMED", "IN_PROGRESS", "COMPLETED"];
     const currentIdx = statusSteps.indexOf(appt.status);
 
     return (
@@ -255,14 +240,13 @@ function AppointmentDrawer({ appt, onClose }) {
                     <h3>Appointment Details</h3>
                     <button onClick={onClose} className="da-drawer-close"><X size={18} /></button>
                 </div>
-
                 <div className="da-drawer-body">
                     {/* Patient Info */}
                     <div className="da-drawer-patient">
-                        <div className="da-drawer-avatar" style={{ background: appt.color }}>{appt.avatar}</div>
+                        <div className="da-drawer-avatar" style={{ background: getColor(appt.patientName) }}>{getInitials(appt.patientName)}</div>
                         <div>
-                            <h4 className="da-drawer-name">{appt.patient}</h4>
-                            <span className="da-drawer-meta">{appt.age}y · {appt.gender === "M" ? "Male" : "Female"} · {appt.condition}</span>
+                            <h4 className="da-drawer-name">{appt.patientName || "Patient"}</h4>
+                            <span className="da-drawer-meta">{appt.patientEmail || ""}</span>
                         </div>
                     </div>
 
@@ -271,7 +255,7 @@ function AppointmentDrawer({ appt, onClose }) {
                         <h5>Status</h5>
                         <div className="da-st-track">
                             {statusSteps.map((step, i) => {
-                                const done = i <= currentIdx && appt.status !== "cancelled";
+                                const done = currentIdx >= 0 && i <= currentIdx && !["CANCELLED", "REJECTED"].includes(appt.status);
                                 const isCurrent = i === currentIdx;
                                 return (
                                     <div key={step} className={`da-st-step ${done ? "done" : ""} ${isCurrent ? "current" : ""}`}>
@@ -281,28 +265,22 @@ function AppointmentDrawer({ appt, onClose }) {
                                 );
                             })}
                         </div>
-                        {appt.status === "cancelled" && (
-                            <div className="da-cancelled-banner"><XCircle size={14} /> This appointment was cancelled</div>
+                        {["CANCELLED", "REJECTED"].includes(appt.status) && (
+                            <div className="da-cancelled-banner"><XCircle size={14} /> This appointment was {appt.status.toLowerCase()}</div>
                         )}
                     </div>
 
-                    {/* Appointment Details */}
+                    {/* Details */}
                     <div className="da-drawer-section">
                         <h5>Details</h5>
                         <div className="da-detail-grid">
+                            <div className="da-detail-item"><Calendar size={13} /> <span>{appt.scheduledDate || "—"}</span></div>
+                            <div className="da-detail-item"><Clock size={13} /> <span>{formatTime12(appt.scheduledTime)}{appt.endTime ? ` – ${formatTime12(appt.endTime)}` : ""}</span></div>
                             <div className="da-detail-item">
-                                <Calendar size={13} /> <span>February 25, 2026</span>
+                                {appt.type === "VIDEO" ? <Video size={13} /> : <Building2 size={13} />}
+                                <span>{appt.type === "VIDEO" ? "Video" : appt.type === "IN_PERSON" ? "In-Person" : "Chat"}</span>
                             </div>
-                            <div className="da-detail-item">
-                                <Clock size={13} /> <span>{formatTime(appt.time)} – {formatTime(appt.endTime)}</span>
-                            </div>
-                            <div className="da-detail-item">
-                                {appt.type === "online" ? <Video size={13} /> : <Building2 size={13} />}
-                                <span>{appt.type === "online" ? "Online Consultation" : "In-Person Visit"}</span>
-                            </div>
-                            <div className="da-detail-item">
-                                <FileText size={13} /> <span>{appt.reason}</span>
-                            </div>
+                            <div className="da-detail-item"><FileText size={13} /> <span>{appt.symptoms || "No symptoms described"}</span></div>
                         </div>
                     </div>
 
@@ -310,55 +288,66 @@ function AppointmentDrawer({ appt, onClose }) {
                     <div className="da-drawer-section">
                         <h5>Contact</h5>
                         <div className="da-detail-grid">
-                            <div className="da-detail-item"><Phone size={13} /> <span>{appt.phone}</span></div>
-                            <div className="da-detail-item"><Mail size={13} /> <span>{appt.email}</span></div>
+                            {appt.patientPhone && <div className="da-detail-item"><Phone size={13} /> <span>{appt.patientPhone}</span></div>}
+                            {appt.patientEmail && <div className="da-detail-item"><Mail size={13} /> <span>{appt.patientEmail}</span></div>}
                         </div>
                     </div>
 
-                    {/* Notes */}
+                    {/* Diagnosis/Notes */}
                     <div className="da-drawer-section">
                         <h5>Notes</h5>
-                        {appt.notes ? (
-                            <p className="da-drawer-notes">{appt.notes}</p>
+                        {appt.doctorNotes ? (
+                            <p className="da-drawer-notes">{appt.doctorNotes}</p>
                         ) : (
                             <p className="da-drawer-empty">No notes for this appointment</p>
                         )}
+                        {appt.diagnosis && (
+                            <div style={{ marginTop: 8, padding: 10, background: "#f0fdf4", borderRadius: 8, fontSize: "0.82rem" }}>
+                                <strong style={{ color: "#16a34a" }}>Diagnosis:</strong> {appt.diagnosis}
+                            </div>
+                        )}
                     </div>
 
-                    {/* Past Visits */}
-                    <div className="da-drawer-section">
-                        <h5>Recent Visits</h5>
-                        <div className="da-past-visits">
-                            <div className="da-pv-item">
-                                <span className="da-pv-date">Feb 18, 2026</span>
-                                <span className="da-pv-reason">Follow-up — BP: 135/88</span>
-                            </div>
-                            <div className="da-pv-item">
-                                <span className="da-pv-date">Feb 04, 2026</span>
-                                <span className="da-pv-reason">Routine Check-up</span>
-                            </div>
+                    {/* Prescription */}
+                    {appt.prescription && (
+                        <div className="da-drawer-section">
+                            <h5>Prescription</h5>
+                            {appt.prescription.items?.map(item => (
+                                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid #f1f5f9", fontSize: "0.8rem" }}>
+                                    <Pill size={14} style={{ color: "#0d9488" }} />
+                                    <div style={{ flex: 1 }}>
+                                        <strong>{item.medicineName}</strong>
+                                        <div style={{ color: "#64748b", fontSize: "0.72rem" }}>{item.dosage} · {item.frequency} · {item.duration}</div>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
-                    </div>
+                    )}
                 </div>
 
                 {/* Footer Actions */}
                 <div className="da-drawer-footer">
-                    {["scheduled", "confirmed"].includes(appt.status) && (
-                        <button className="da-btn-primary"><Play size={14} /> Start Consultation</button>
-                    )}
-                    {appt.status === "in-progress" && (
-                        <button className="da-btn-primary"><Play size={14} /> Continue Consultation</button>
-                    )}
-                    <button className="da-btn-outline"><Pill size={14} /> Prescribe</button>
-                    <button className="da-btn-outline"><StickyNote size={14} /> Note</button>
-                    {appt.status !== "completed" && appt.status !== "cancelled" && (
+                    {appt.status === "REQUESTED" && (
                         <>
-                            <button className="da-btn-outline"><RefreshCw size={14} /> Reschedule</button>
-                            <button className="da-btn-danger-outline"><XCircle size={14} /> Cancel</button>
+                            <button className="da-btn-primary" onClick={() => onAction("approve", appt)}><Check size={14} /> Approve</button>
+                            <button className="da-btn-danger-outline" onClick={() => onAction("reject", appt)}><X size={14} /> Reject</button>
                         </>
                     )}
-                    {appt.status === "completed" && (
+                    {appt.status === "CONFIRMED" && (
+                        <button className="da-btn-primary" onClick={() => onAction("start", appt)}><Play size={14} /> Start Consultation</button>
+                    )}
+                    {appt.status === "IN_PROGRESS" && (
+                        <>
+                            <button className="da-btn-primary" onClick={() => onAction("complete", appt)}><CheckCircle2 size={14} /> Complete</button>
+                            <button className="da-btn-outline" onClick={() => onAction("prescribe", appt)}><Pill size={14} /> Prescribe</button>
+                            <button className="da-btn-outline" onClick={() => onAction("notes", appt)}><StickyNote size={14} /> Notes</button>
+                        </>
+                    )}
+                    {appt.status === "COMPLETED" && (
                         <button className="da-btn-outline"><RefreshCw size={14} /> Schedule Follow-up</button>
+                    )}
+                    {!["COMPLETED", "CANCELLED", "REJECTED", "NO_SHOW"].includes(appt.status) && (
+                        <button className="da-btn-danger-outline" onClick={() => onAction("cancel", appt)}><XCircle size={14} /> Cancel</button>
                     )}
                 </div>
             </aside>
@@ -366,63 +355,264 @@ function AppointmentDrawer({ appt, onClose }) {
     );
 }
 
-// ═══════════════════════════════════════════════════
-//  MAIN PAGE
-// ═══════════════════════════════════════════════════
-export default function DoctorAppointmentsPage() {
-    const [view, setView] = useState("day");
+// ═══ Prescription Modal ═══
+function PrescriptionModal({ appt, onClose, onSave }) {
+    const [diagnosis, setDiagnosis] = useState("");
+    const [notes, setNotes] = useState("");
+    const [items, setItems] = useState([{ medicineName: "", dosage: "", frequency: "", duration: "", instructions: "", quantity: null }]);
+    const [saving, setSaving] = useState(false);
+
+    const addItem = () => setItems(prev => [...prev, { medicineName: "", dosage: "", frequency: "", duration: "", instructions: "", quantity: null }]);
+    const removeItem = (i) => setItems(prev => prev.filter((_, idx) => idx !== i));
+    const updateItem = (i, field, val) => setItems(prev => prev.map((item, idx) => idx === i ? { ...item, [field]: val } : item));
+
+    const handleSave = async () => {
+        setSaving(true);
+        await onSave({ diagnosis, notes, items: items.filter(i => i.medicineName.trim()) });
+        setSaving(false);
+    };
+
+    return (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={onClose}>
+            <div style={{ background: "white", borderRadius: 12, padding: 24, width: 560, maxWidth: "95vw", maxHeight: "85vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+                <h3 style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><Pill size={18} /> Create Prescription</h3>
+                <label style={{ fontSize: "0.8rem", fontWeight: 600, display: "block", marginBottom: 4 }}>Diagnosis</label>
+                <input value={diagnosis} onChange={e => setDiagnosis(e.target.value)} placeholder="Enter diagnosis" style={{ width: "100%", padding: "8px 12px", border: "1px solid #e2e8f0", borderRadius: 8, marginBottom: 12, fontSize: "0.85rem" }} />
+
+                <label style={{ fontSize: "0.8rem", fontWeight: 600, display: "block", marginBottom: 4 }}>Medications</label>
+                {items.map((item, i) => (
+                    <div key={i} style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: 12, marginBottom: 8 }}>
+                        <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+                            <input placeholder="Medicine name *" value={item.medicineName} onChange={e => updateItem(i, "medicineName", e.target.value)} style={{ flex: 2, padding: "6px 8px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: "0.82rem" }} />
+                            <input placeholder="Dosage" value={item.dosage} onChange={e => updateItem(i, "dosage", e.target.value)} style={{ flex: 1, padding: "6px 8px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: "0.82rem" }} />
+                        </div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                            <input placeholder="Frequency" value={item.frequency} onChange={e => updateItem(i, "frequency", e.target.value)} style={{ flex: 1, padding: "6px 8px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: "0.82rem" }} />
+                            <input placeholder="Duration" value={item.duration} onChange={e => updateItem(i, "duration", e.target.value)} style={{ flex: 1, padding: "6px 8px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: "0.82rem" }} />
+                            <input placeholder="Instructions" value={item.instructions} onChange={e => updateItem(i, "instructions", e.target.value)} style={{ flex: 1, padding: "6px 8px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: "0.82rem" }} />
+                            {items.length > 1 && <button onClick={() => removeItem(i)} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626" }}><X size={16} /></button>}
+                        </div>
+                    </div>
+                ))}
+                <button onClick={addItem} style={{ background: "none", border: "1px dashed #e2e8f0", width: "100%", padding: 8, borderRadius: 8, cursor: "pointer", fontSize: "0.82rem", color: "#64748b", marginBottom: 12 }}>+ Add Medicine</button>
+
+                <label style={{ fontSize: "0.8rem", fontWeight: 600, display: "block", marginBottom: 4 }}>Notes (optional)</label>
+                <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Additional notes..." style={{ width: "100%", padding: "8px 12px", border: "1px solid #e2e8f0", borderRadius: 8, marginBottom: 16, fontSize: "0.82rem", minHeight: 50, fontFamily: "inherit", resize: "vertical" }} />
+
+                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                    <button onClick={onClose} className="da-btn-outline">Cancel</button>
+                    <button onClick={handleSave} disabled={saving || !items.some(i => i.medicineName.trim())} className="da-btn-primary">
+                        {saving ? "Saving..." : "Save Prescription"}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ═══ Notes Modal ═══
+function NotesModal({ appt, onClose, onSave }) {
+    const [doctorNotes, setDoctorNotes] = useState(appt?.doctorNotes || "");
+    const [diagnosis, setDiagnosis] = useState(appt?.diagnosis || "");
+    const [followUpDate, setFollowUpDate] = useState(appt?.followUpDate || "");
+    const [saving, setSaving] = useState(false);
+
+    const handleSave = async () => {
+        setSaving(true);
+        await onSave({ doctorNotes, diagnosis, followUpDate: followUpDate || null });
+        setSaving(false);
+    };
+
+    return (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={onClose}>
+            <div style={{ background: "white", borderRadius: 12, padding: 24, width: 460, maxWidth: "95vw" }} onClick={e => e.stopPropagation()}>
+                <h3 style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><StickyNote size={18} /> Doctor Notes</h3>
+                <label style={{ fontSize: "0.8rem", fontWeight: 600, display: "block", marginBottom: 4 }}>Diagnosis</label>
+                <input value={diagnosis} onChange={e => setDiagnosis(e.target.value)} placeholder="Enter diagnosis" style={{ width: "100%", padding: "8px 12px", border: "1px solid #e2e8f0", borderRadius: 8, marginBottom: 12, fontSize: "0.85rem" }} />
+                <label style={{ fontSize: "0.8rem", fontWeight: 600, display: "block", marginBottom: 4 }}>Private Notes</label>
+                <textarea value={doctorNotes} onChange={e => setDoctorNotes(e.target.value)} placeholder="Clinical notes..." style={{ width: "100%", padding: "8px 12px", border: "1px solid #e2e8f0", borderRadius: 8, marginBottom: 12, fontSize: "0.85rem", minHeight: 80, fontFamily: "inherit", resize: "vertical" }} />
+                <label style={{ fontSize: "0.8rem", fontWeight: 600, display: "block", marginBottom: 4 }}>Follow-up Date (optional)</label>
+                <input type="date" value={followUpDate} onChange={e => setFollowUpDate(e.target.value)} style={{ width: "100%", padding: "8px 12px", border: "1px solid #e2e8f0", borderRadius: 8, marginBottom: 16, fontSize: "0.85rem" }} />
+                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                    <button onClick={onClose} className="da-btn-outline">Cancel</button>
+                    <button onClick={handleSave} disabled={saving} className="da-btn-primary">{saving ? "Saving..." : "Save Notes"}</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ═══ MAIN PAGE ═══
+function DoctorAppointmentsPage() {
+    const { user } = useAuth();
+    const [view, setView] = useState("list");
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("All");
     const [selectedAppt, setSelectedAppt] = useState(null);
+    const [appointments, setAppointments] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [toast, setToast] = useState(null);
 
-    // Current date display
-    const dateStr = "Wednesday, February 25, 2026";
+    // Modals
+    const [prescribeAppt, setPrescribeAppt] = useState(null);
+    const [notesAppt, setNotesAppt] = useState(null);
+
+    useEffect(() => { fetchAppointments(); }, []);
+
+    const fetchAppointments = async () => {
+        setLoading(true);
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/doctor/appointments?page=0&size=50`, { credentials: "include" });
+            const data = await res.json();
+            if (data.success) {
+                const pageData = data.data;
+                setAppointments(pageData?.content || pageData || []);
+            }
+        } catch (err) {
+            console.error(err);
+        }
+        setLoading(false);
+    };
+
+    const showToast = (type, message) => {
+        setToast({ type, message });
+        setTimeout(() => setToast(null), 3000);
+    };
+
+    const handleAction = async (action, appt) => {
+        try {
+            let url, method = "PATCH", body = null;
+            switch (action) {
+                case "approve":
+                    url = `${API_BASE_URL}/api/doctor/appointments/${appt.id}/approve`;
+                    break;
+                case "reject":
+                    const reason = prompt("Reason for rejection:");
+                    if (reason === null) return;
+                    url = `${API_BASE_URL}/api/doctor/appointments/${appt.id}/reject`;
+                    body = JSON.stringify({ reason });
+                    break;
+                case "start":
+                    // just mark as confirmed → in_progress is manual via "complete" in the drawer
+                    url = `${API_BASE_URL}/api/doctor/appointments/${appt.id}/approve`;
+                    break;
+                case "complete":
+                    url = `${API_BASE_URL}/api/doctor/appointments/${appt.id}/complete`;
+                    break;
+                case "cancel":
+                    const cancelReason = prompt("Reason for cancellation:");
+                    if (cancelReason === null) return;
+                    url = `${API_BASE_URL}/api/doctor/appointments/${appt.id}/cancel`;
+                    body = JSON.stringify({ reason: cancelReason });
+                    break;
+                case "prescribe":
+                    setPrescribeAppt(appt);
+                    return;
+                case "notes":
+                    setNotesAppt(appt);
+                    return;
+                default: return;
+            }
+            const res = await fetch(url, {
+                method, credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body,
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast("success", `Appointment ${action}d successfully`);
+                fetchAppointments();
+                setSelectedAppt(null);
+            } else {
+                showToast("error", data.message || "Action failed");
+            }
+        } catch (err) {
+            showToast("error", "Network error");
+        }
+    };
+
+    const handleSavePrescription = async (prescriptionData) => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/doctor/appointments/${prescribeAppt.id}/prescription`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(prescriptionData),
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast("success", "Prescription created");
+                fetchAppointments();
+                setPrescribeAppt(null);
+            } else {
+                showToast("error", data.message || "Failed");
+            }
+        } catch (err) {
+            showToast("error", "Network error");
+        }
+    };
+
+    const handleSaveNotes = async (notesData) => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/doctor/appointments/${notesAppt.id}/notes`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(notesData),
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast("success", "Notes saved");
+                fetchAppointments();
+                setNotesAppt(null);
+            } else {
+                showToast("error", data.message || "Failed");
+            }
+        } catch (err) {
+            showToast("error", "Network error");
+        }
+    };
+
+    const dateStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 
     const filtered = useMemo(() => {
-        return APPOINTMENTS.filter((a) => {
-            const matchSearch = a.patient.toLowerCase().includes(search.toLowerCase()) ||
-                a.condition.toLowerCase().includes(search.toLowerCase());
+        return appointments.filter(a => {
+            const matchSearch = !search.trim() ||
+                a.patientName?.toLowerCase().includes(search.toLowerCase()) ||
+                a.symptoms?.toLowerCase().includes(search.toLowerCase());
             const matchStatus = statusFilter === "All" ||
                 STATUS_CONFIG[a.status]?.label === statusFilter;
             return matchSearch && matchStatus;
         });
-    }, [search, statusFilter]);
+    }, [search, statusFilter, appointments]);
+
+    if (loading) return <div className="da-page" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ width: 32, height: 32, border: "3px solid #e2e8f0", borderTopColor: "#0d9488", borderRadius: "50%", animation: "rg-spin 0.6s linear infinite" }} /><style>{`@keyframes rg-spin { to { transform: rotate(360deg); } }`}</style></div>;
 
     return (
         <div className="da-page">
-            {/* Header */}
             <div className="da-header">
                 <div>
                     <h1 className="da-title">Appointments</h1>
                     <p className="da-subtitle">{dateStr}</p>
                 </div>
-                <button className="da-btn-primary"><Plus size={15} /> New Appointment</button>
             </div>
 
-            {/* Summary Cards */}
-            <SummaryCards appointments={APPOINTMENTS} />
-
-            {/* Next Appointment */}
+            <SummaryCards appointments={appointments} />
             <NextAppointmentCard appointments={filtered} />
 
-            {/* Toolbar */}
             <div className="da-toolbar">
                 <div className="da-search">
                     <Search size={16} />
-                    <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search patient name or condition..." />
+                    <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search patient name or symptoms..." />
                     {search && <button className="da-search-clear" onClick={() => setSearch("")}><X size={14} /></button>}
                 </div>
-
                 <div className="da-filter-pills">
-                    {STATUS_FILTERS.map((f) => (
-                        <button key={f} className={`da-filter-pill ${statusFilter === f ? "active" : ""}`} onClick={() => setStatusFilter(f)}>
-                            {f}
-                        </button>
+                    {STATUS_FILTERS.map(f => (
+                        <button key={f} className={`da-filter-pill ${statusFilter === f ? "active" : ""}`} onClick={() => setStatusFilter(f)}>{f}</button>
                     ))}
                 </div>
-
                 <div className="da-view-switcher">
-                    {VIEWS.map((v) => (
+                    {VIEWS.map(v => (
                         <button key={v.id} className={`da-view-btn ${view === v.id ? "active" : ""}`} onClick={() => setView(v.id)}>
                             <v.icon size={14} /> {v.label}
                         </button>
@@ -430,12 +620,11 @@ export default function DoctorAppointmentsPage() {
                 </div>
             </div>
 
-            {/* Main View */}
             {filtered.length > 0 ? (
                 view === "day" ? (
-                    <DayTimeline appointments={filtered} onSelect={setSelectedAppt} />
+                    <DayTimeline appointments={filtered} onSelect={setSelectedAppt} onAction={handleAction} />
                 ) : (
-                    <ListView appointments={filtered} onSelect={setSelectedAppt} />
+                    <ListView appointments={filtered} onSelect={setSelectedAppt} onAction={handleAction} />
                 )
             ) : (
                 <div className="da-empty">
@@ -445,8 +634,35 @@ export default function DoctorAppointmentsPage() {
                 </div>
             )}
 
-            {/* Drawer */}
-            <AppointmentDrawer appt={selectedAppt} onClose={() => setSelectedAppt(null)} />
+            <AppointmentDrawer appt={selectedAppt} onClose={() => setSelectedAppt(null)} onAction={handleAction} />
+
+            {/* Prescription Modal */}
+            {prescribeAppt && <PrescriptionModal appt={prescribeAppt} onClose={() => setPrescribeAppt(null)} onSave={handleSavePrescription} />}
+
+            {/* Notes Modal */}
+            {notesAppt && <NotesModal appt={notesAppt} onClose={() => setNotesAppt(null)} onSave={handleSaveNotes} />}
+
+            {/* Toast */}
+            {toast && (
+                <div style={{
+                    position: "fixed", bottom: 24, right: 24, padding: "12px 20px", borderRadius: 10,
+                    fontSize: "0.85rem", fontWeight: 500, color: "white", zIndex: 1100,
+                    background: toast.type === "success" ? "#16a34a" : "#dc2626",
+                    boxShadow: "0 8px 20px rgba(0,0,0,.15)",
+                    animation: "pw-slide-in 0.3s ease",
+                }}>
+                    {toast.message}
+                </div>
+            )}
+            <style>{`@keyframes pw-slide-in { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }`}</style>
         </div>
+    );
+}
+
+export default function DoctorAppointmentsWrapper() {
+    return (
+        <RouteGuard allowedRoles={["DOCTOR"]}>
+            <DoctorAppointmentsPage />
+        </RouteGuard>
     );
 }

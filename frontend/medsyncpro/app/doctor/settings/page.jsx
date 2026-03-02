@@ -8,7 +8,7 @@ import {
     Stethoscope, IndianRupee
 } from "lucide-react";
 import { useAuth } from "@/app/context/AuthContext";
-import { API_BASE_URL } from "@/lib/config";
+import { config } from "@/lib/config";
 import { toast } from "sonner";
 import "../doctor-settings.css";
 
@@ -16,7 +16,7 @@ const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
 
 // ── API helper ──
 async function api(path, options = {}) {
-    const res = await fetch(`${API_BASE_URL}${path}`, {
+    const res = await fetch(`${config.apiUrl}${path}`, {
         credentials: "include",
         headers: { "Content-Type": "application/json", ...options.headers },
         ...options,
@@ -400,7 +400,7 @@ function DocumentsSection({ documents }) {
                                         const formData = new FormData();
                                         formData.append("file", file);
                                         try {
-                                            await fetch(`${API_BASE_URL}/api/users/me/documents/${docDef.type}`, {
+                                            await fetch(`${config.apiUrl}/users/me/documents/${docDef.type}`, {
                                                 method: "POST", credentials: "include", body: formData,
                                             });
                                             toast.success(`${docDef.name} uploaded`);
@@ -432,7 +432,7 @@ function SecuritySection({ twoFa, onTwoFaChange }) {
         }
         setChangingPw(true);
         try {
-            await api("/api/doctor/settings/security/change-password", {
+            await api("/doctor/settings/security/change-password", {
                 method: "POST", body: JSON.stringify(passwords),
             });
             toast.success("Password changed successfully");
@@ -527,7 +527,7 @@ function AccountSection() {
 
     const handleDeactivate = async () => {
         try {
-            await api("/api/doctor/settings/account/deactivate", { method: "POST" });
+            await api("/doctor/settings/account/deactivate", { method: "POST" });
             toast.success("Account deactivated");
             logout();
         } catch (e) { toast.error(e.message); }
@@ -535,7 +535,7 @@ function AccountSection() {
 
     const handleDelete = async () => {
         try {
-            await api("/api/doctor/settings/account/delete", { method: "POST" });
+            await api("/doctor/settings/account/delete", { method: "POST" });
             toast.success("Account deletion requested");
             logout();
         } catch (e) { toast.error(e.message); }
@@ -620,9 +620,9 @@ export default function DoctorSettingsPage() {
         setLoading(true);
         try {
             const [profileRes, settingsRes, docsRes] = await Promise.allSettled([
-                api("/api/users/profile"),
-                api("/api/doctor/settings"),
-                api("/api/users/me/required-documents"),
+                api("/users/profile"),
+                api("/doctor/settings"),
+                api("/users/me/required-documents"),
             ]);
 
             if (profileRes.status === "fulfilled") setProfile(profileRes.value || {});
@@ -661,7 +661,7 @@ export default function DoctorSettingsPage() {
 
     const handleTwoFaChange = async (val) => {
         try {
-            await api("/api/doctor/settings/security/two-factor", {
+            await api("/doctor/settings/security/two-factor", {
                 method: "PUT", body: JSON.stringify({ enabled: val }),
             });
             setTwoFa(val);
@@ -672,7 +672,7 @@ export default function DoctorSettingsPage() {
     const handleAddClinic = async () => {
         if (!clinicForm.clinicName) { toast.error("Clinic name is required"); return; }
         try {
-            const newClinic = await api("/api/doctor/settings/clinics", {
+            const newClinic = await api("/doctor/settings/clinics", {
                 method: "POST", body: JSON.stringify(clinicForm),
             });
             setClinics(prev => [...prev, newClinic]);
@@ -683,7 +683,7 @@ export default function DoctorSettingsPage() {
 
     const handleDeleteClinic = async (id) => {
         try {
-            await api(`/api/doctor/settings/clinics/${id}`, { method: "DELETE" });
+            await api(`/doctor/settings/clinics/${id}`, { method: "DELETE" });
             setClinics(prev => prev.filter(c => c.id !== id));
             toast.success("Location removed");
         } catch (e) { toast.error(e.message); }
@@ -705,22 +705,22 @@ export default function DoctorSettingsPage() {
             if (profile.bio !== undefined) profilePayload.bio = profile.bio;
             formData.append("profile", new Blob([JSON.stringify(profilePayload)], { type: "application/json" }));
             if (profileImageRef.current) formData.append("profileImage", profileImageRef.current);
-            await fetch(`${API_BASE_URL}/api/users/profile`, { method: "PATCH", credentials: "include", body: formData });
+            await fetch(`${config.apiUrl}/users/profile`, { method: "PATCH", credentials: "include", body: formData });
 
             // 2. Professional
-            await api("/api/doctor/settings/professional", { method: "PUT", body: JSON.stringify(professional) });
+            await api("/doctor/settings/professional", { method: "PUT", body: JSON.stringify(professional) });
 
             // 3. Availability
-            await api("/api/doctor/settings/availability", { method: "PUT", body: JSON.stringify(availability) });
+            await api("/doctor/settings/availability", { method: "PUT", body: JSON.stringify(availability) });
 
             // 4. Consultation
-            await api("/api/doctor/settings/consultation", { method: "PUT", body: JSON.stringify(consultation) });
+            await api("/doctor/settings/consultation", { method: "PUT", body: JSON.stringify(consultation) });
 
             // 5. Notification prefs
-            await api("/api/doctor/settings/notifications", { method: "PUT", body: JSON.stringify({ prefs: notifPrefs }) });
+            await api("/doctor/settings/notifications", { method: "PUT", body: JSON.stringify({ prefs: notifPrefs }) });
 
             // 6. Privacy
-            await api("/api/doctor/settings/privacy", { method: "PUT", body: JSON.stringify({ settings: privacyPrefs }) });
+            await api("/doctor/settings/privacy", { method: "PUT", body: JSON.stringify({ settings: privacyPrefs }) });
 
             setDirty(false);
             setSaved(true);

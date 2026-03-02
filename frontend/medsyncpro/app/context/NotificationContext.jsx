@@ -1,214 +1,205 @@
 "use client";
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
-import { requestFirebaseNotificationPermission, onMessageListener } from "@/lib/firebase";
+
+/**
+ * NotificationContext.jsx
+ *
+ * SSE via /api/notifications/stream  (Next.js proxy route — same origin,
+ * no cookie domain issue). All other calls go through server actions.
+ *
+ * The browser never talks to Spring Boot directly.
+ */
+
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+} from "react";
+import {
+  requestFirebaseNotificationPermission,
+  onMessageListener,
+} from "@/lib/firebase";
 import { useAuth } from "@/app/context/AuthContext";
-import { API_BASE_URL } from "@/lib/config";
 import { toast } from "sonner";
+import { config } from "@/lib/config";
+import {
+  fetchNotificationsAction,
+  fetchUnreadCountAction,
+  markAsReadAction,
+  registerFcmTokenAction,
+} from "@/action/notificationAction";
 
 const NotificationContext = createContext(null);
 
 export const NotificationProvider = ({ children }) => {
-    const { user, validateSession } = useAuth();
-    const [notifications, setNotifications] = useState([]);
-    const [unreadCount, setUnreadCount] = useState(0);
-    const sseRef = useRef(null);
-    const reconnectTimeoutRef = useRef(null);
+  const { user, validateSession } = useAuth();
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const sseRef = useRef(null);
+  const reconnectTimeoutRef = useRef(null);
 
-    // ── Fetch notifications from API ──
-    const fetchNotifications = useCallback(async () => {
-        if (!user) return;
+  // ── Data fetches (via server actions) ──────────────────────────────────────
+
+  const fetchNotifications = useCallback(async () => {
+    if (!user) return;
+    const result = await fetchNotificationsAction();
+    if (result.success) {
+      setNotifications(result.data);
+      setUnreadCount(result.data.filter((n) => !n.isRead).length);
+    }
+  }, [user]);
+
+  const fetchUnreadCount = useCallback(async () => {
+    if (!user) return;
+    const result = await fetchUnreadCountAction();
+    if (result.success) setUnreadCount(result.count);
+  }, [user]);
+
+  // ── SSE connection (via Next.js proxy route) ────────────────────────────────
+  //
+  // Connects to /api/notifications/stream — a Next.js Route Handler on the
+  // same origin (localhost:3000). The route handler reads the HttpOnly cookie
+  // server-side and opens the real Spring Boot SSE connection from the server.
+  // The browser never touches localhost:8080 directly.
+
+  const connectSSE = useCallback(() => {
+    if (!user) return;
+
+    if (sseRef.current) {
+      sseRef.current.close();
+      sseRef.current = null;
+    }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+
+    try {
+      // Same-origin URL — no CORS, no cookie domain issue.
+      const eventSource = new EventSource(
+        `${config.basePath}/api/notifications/stream`,
+      );
+
+      eventSource.addEventListener("connected", () => {
+        console.log("[SSE] Connected via Next.js proxy");
+      });
+
+      eventSource.addEventListener("notification", (event) => {
         try {
-            const res = await fetch(`${API_BASE_URL}/api/notifications`, {
-                method: "GET",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setNotifications(data.data || []);
-                setUnreadCount((data.data || []).filter(n => !n.isRead).length);
-            }
-        } catch (error) {
-            console.error("Failed to fetch notifications", error);
+          const data = JSON.parse(event.data);
+          toast.info(data.title, { description: data.message });
+          fetchNotifications();
+          fetchUnreadCount();
+
+          // If a doctor/pharmacist was approved/rejected, re-validate their session.
+          if (data.type === "VERIFICATION_DECISION") {
+            validateSession?.();
+          }
+        } catch (e) {
+          console.error("[SSE] Failed to parse notification payload", e);
         }
-    }, [user]);
+      });
 
-    // ── Fetch unread count ──
-    const fetchUnreadCount = useCallback(async () => {
-        if (!user) return;
-        try {
-            const res = await fetch(`${API_BASE_URL}/api/notifications/unread-count`, {
-                method: "GET",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setUnreadCount(data.data?.unreadCount || 0);
-            }
-        } catch (error) {
-            console.error("Failed to fetch unread count", error);
-        }
-    }, [user]);
+      eventSource.onerror = () => {
+        console.warn("[SSE] Connection error — reconnecting in 5 s");
+        eventSource.close();
+        sseRef.current = null;
+        reconnectTimeoutRef.current = setTimeout(() => {
+          if (user) connectSSE();
+        }, 5000);
+      };
 
-    // ── SSE Connection ──
-    const connectSSE = useCallback(() => {
-        if (!user) return;
-
-        // Close existing connection
-        if (sseRef.current) {
-            sseRef.current.close();
-            sseRef.current = null;
-        }
-
-        // Clear any pending reconnect
-        if (reconnectTimeoutRef.current) {
-            clearTimeout(reconnectTimeoutRef.current);
-            reconnectTimeoutRef.current = null;
-        }
-
-        try {
-            const eventSource = new EventSource(
-                `${API_BASE_URL}/api/notifications/stream`,
-                { withCredentials: true }
-            );
-
-            eventSource.addEventListener("connected", () => {
-                console.log("SSE connected");
-            });
-
-            eventSource.addEventListener("notification", (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-
-                    // Show toast
-                    toast.info(data.title, {
-                        description: data.message,
-                    });
-
-                    // Refresh notifications and unread count
-                    fetchNotifications();
-                    fetchUnreadCount();
-
-                    // If it's a verification decision, also refresh auth session
-                    if (data.type === "VERIFICATION_DECISION") {
-                        validateSession?.();
-                    }
-                } catch (e) {
-                    console.error("Failed to parse SSE notification", e);
-                }
-            });
-
-            eventSource.onerror = () => {
-                console.warn("SSE connection error, will reconnect...");
-                eventSource.close();
-                sseRef.current = null;
-
-                // Reconnect after 5 seconds
-                reconnectTimeoutRef.current = setTimeout(() => {
-                    if (user) {
-                        connectSSE();
-                    }
-                }, 5000);
-            };
-
-            sseRef.current = eventSource;
-        } catch (error) {
-            console.error("Failed to establish SSE connection", error);
-
-            // Fallback: poll every 30 seconds
-            reconnectTimeoutRef.current = setTimeout(() => {
-                if (user) {
-                    fetchUnreadCount();
-                    connectSSE();
-                }
-            }, 30000);
-        }
-    }, [user, fetchNotifications, fetchUnreadCount, validateSession]);
-
-    // ── Setup SSE + Initial Fetch ──
-    useEffect(() => {
+      sseRef.current = eventSource;
+    } catch (error) {
+      console.error("[SSE] Failed to establish connection", error);
+      reconnectTimeoutRef.current = setTimeout(() => {
         if (user) {
-            fetchNotifications();
-            connectSSE();
-
-            // For admins, also setup Firebase
-            if (user.role === 'ADMIN') {
-                requestFirebaseNotificationPermission().then(async (token) => {
-                    if (token) {
-                        try {
-                            await fetch(`${API_BASE_URL}/api/admin/fcm-token`, {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                credentials: "include",
-                                body: JSON.stringify({ token }),
-                            });
-                        } catch (error) {
-                            console.error("Failed to register FCM token", error);
-                        }
-                    }
-                });
-            }
+          fetchUnreadCount();
+          connectSSE();
         }
+      }, 30000);
+    }
+  }, [user, fetchNotifications, fetchUnreadCount, validateSession]);
 
-        return () => {
-            if (sseRef.current) {
-                sseRef.current.close();
-                sseRef.current = null;
-            }
-            if (reconnectTimeoutRef.current) {
-                clearTimeout(reconnectTimeoutRef.current);
-                reconnectTimeoutRef.current = null;
-            }
-        };
-    }, [user, fetchNotifications, connectSSE]);
+  // ── Setup on login / teardown on logout ────────────────────────────────────
 
-    // ── Firebase foreground messages (admin only) ──
-    useEffect(() => {
-        const setupMessageListener = () => {
-            onMessageListener().then((payload) => {
-                toast.info(`${payload.notification.title}`, {
-                    description: payload.notification.body,
-                });
-                fetchNotifications();
-                setupMessageListener();
-            });
-        };
+  useEffect(() => {
+    if (!user) return;
 
-        if (user && user.role === 'ADMIN') {
-            setupMessageListener();
-        }
-    }, [user, fetchNotifications]);
+    fetchNotifications();
+    connectSSE();
 
-    // ── Mark as Read ──
-    const markAsRead = async (id) => {
-        // Optimistic update
-        setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-        setUnreadCount(prev => Math.max(0, prev - 1));
+    if (user.role === "ADMIN") {
+      requestFirebaseNotificationPermission().then(async (fcmToken) => {
+        if (fcmToken) await registerFcmTokenAction(fcmToken);
+      });
+    }
 
-        try {
-            await fetch(`${API_BASE_URL}/api/notifications/${id}/read`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-            });
-        } catch (error) {
-            console.error("Failed to mark as read", error);
-            fetchNotifications();
-        }
+    return () => {
+      if (sseRef.current) {
+        sseRef.current.close();
+        sseRef.current = null;
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
     };
+  }, [user, fetchNotifications, connectSSE]);
 
-    return (
-        <NotificationContext.Provider value={{ notifications, unreadCount, fetchNotifications, fetchUnreadCount, markAsRead }}>
-            {children}
-        </NotificationContext.Provider>
-    );
+  // ── Firebase foreground messages (admin only) ─────────────────────────────
+
+  useEffect(() => {
+    if (!user || user.role !== "ADMIN") return;
+    const subscribe = () => {
+      onMessageListener().then((payload) => {
+        toast.info(payload.notification.title, {
+          description: payload.notification.body,
+        });
+        fetchNotifications();
+        subscribe();
+      });
+    };
+    subscribe();
+  }, [user, fetchNotifications]);
+
+  // ── Mark as read (optimistic) ─────────────────────────────────────────────
+
+  const markAsRead = useCallback(
+    async (id) => {
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
+      );
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+
+      const result = await markAsReadAction(id);
+      if (!result.success) fetchNotifications(); // revert on failure
+    },
+    [fetchNotifications],
+  );
+
+  return (
+    <NotificationContext.Provider
+      value={{
+        notifications,
+        unreadCount,
+        fetchNotifications,
+        fetchUnreadCount,
+        markAsRead,
+      }}
+    >
+      {children}
+    </NotificationContext.Provider>
+  );
 };
 
 export const useNotifications = () => {
-    const context = useContext(NotificationContext);
-    if (!context) {
-        throw new Error("useNotifications must be used within a NotificationProvider");
-    }
-    return context;
+  const context = useContext(NotificationContext);
+  if (!context)
+    throw new Error(
+      "useNotifications must be used within a NotificationProvider",
+    );
+  return context;
 };

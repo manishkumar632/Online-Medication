@@ -1,179 +1,197 @@
-import { useState, useCallback, useEffect } from 'react';
-import { API_BASE_URL } from '@/lib/config';
-import { toast } from 'sonner';
+import { useState, useCallback, useEffect } from "react";
+import { toast } from "sonner";
+import { config } from "@/lib/config";
+import {
+  fetchVerificationStatusAction,
+  submitForVerificationAction,
+  uploadDocumentsBatchAction,
+} from "@/action/verificationAction";
 
+/**
+ * useVerification
+ *
+ * Manages professional verification state for doctors and pharmacists.
+ *
+ * Data flow:
+ *   • Status / submit / batch-upload  →  server actions (verificationAction.js)
+ *   • Single file upload / delete     →  Route Handler (/api/verification/documents/:type)
+ *
+ * The browser never calls Spring Boot directly — the access_token cookie
+ * is read and forwarded server-side in both paths.
+ */
 export default function useVerification() {
-    const [status, setStatus] = useState("UNVERIFIED");
-    const [documents, setDocuments] = useState([]);
-    const [requiredDocuments, setRequiredDocuments] = useState([]);
-    const [notes, setNotes] = useState("");
-    const [submittedAt, setSubmittedAt] = useState(null);
-    const [reviewedAt, setReviewedAt] = useState(null);
-    const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState("UNVERIFIED");
+  const [documents, setDocuments] = useState([]);
+  const [requiredDocuments, setRequiredDocuments] = useState([]);
+  const [notes, setNotes] = useState("");
+  const [submittedAt, setSubmittedAt] = useState(null);
+  const [reviewedAt, setReviewedAt] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-    const fetchVerificationStatus = useCallback(async () => {
-        try {
-            setLoading(true);
-            const res = await fetch(`${API_BASE_URL}/api/users/me/verification-status`, {
-                headers: { "Content-Type": "application/json" },
-                credentials: "include"
-            });
-            const data = await res.json();
+  // ── Sync local state from the API response data object ─────────────────────
 
-            if (data.success) {
-                setStatus(data.data.status);
-                setDocuments(data.data.submittedDocuments || []);
-                setRequiredDocuments(data.data.requiredDocuments || []);
-                setNotes(data.data.verificationNotes || "");
-                setSubmittedAt(data.data.submittedAt || null);
-                setReviewedAt(data.data.reviewedAt || null);
-            }
-        } catch (error) {
-            console.error("Error fetching verification status", error);
-        } finally {
-            setLoading(false);
-        }
-    }, []);
+  function applyVerificationData(data) {
+    setStatus(data.status);
+    setDocuments(data.submittedDocuments || []);
+    setRequiredDocuments(data.requiredDocuments || []);
+    setNotes(data.verificationNotes || "");
+    setSubmittedAt(data.submittedAt || null);
+    setReviewedAt(data.reviewedAt || null);
+  }
 
-    // Upload a single document by type
-    const uploadSingleDocument = async (type, file) => {
-        try {
-            const formData = new FormData();
-            formData.append('file', file);
+  // ── Fetch verification status ───────────────────────────────────────────────
 
-            const res = await fetch(`${API_BASE_URL}/api/users/me/documents/${type}`, {
-                method: "POST",
-                credentials: "include",
-                body: formData
-            });
+  const fetchVerificationStatus = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await fetchVerificationStatusAction();
+      if (result.success && result.data) {
+        applyVerificationData(result.data);
+      }
+    } catch (error) {
+      console.error("Error fetching verification status", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-            const data = await res.json();
-            if (res.ok && data.success) {
-                toast.success("Document uploaded successfully");
-                // Update local state from response
-                setStatus(data.data.status);
-                setDocuments(data.data.submittedDocuments || []);
-                setRequiredDocuments(data.data.requiredDocuments || []);
-                return true;
-            } else {
-                toast.error(data.message || "Failed to upload document");
-                return false;
-            }
-        } catch (error) {
-            console.error(error);
-            toast.error("An error occurred during upload");
-            return false;
-        }
-    };
+  useEffect(() => {
+    fetchVerificationStatus();
+  }, [fetchVerificationStatus]);
 
-    // Delete a single document by type
-    const deleteSingleDocument = async (type) => {
-        try {
-            const res = await fetch(`${API_BASE_URL}/api/users/me/documents/${type}`, {
-                method: "DELETE",
-                credentials: "include"
-            });
+  // ── Upload a single document ────────────────────────────────────────────────
+  //
+  // Goes through the Route Handler at /api/verification/documents/:type.
+  // The handler reads the HttpOnly cookie server-side and pipes the multipart
+  // body directly to Spring Boot — the file is never buffered in Next.js memory.
 
-            const data = await res.json();
-            if (res.ok && data.success) {
-                toast.success("Document removed");
-                setStatus(data.data.status);
-                setDocuments(data.data.submittedDocuments || []);
-                setRequiredDocuments(data.data.requiredDocuments || []);
-                return true;
-            } else {
-                toast.error(data.message || "Failed to remove document");
-                return false;
-            }
-        } catch (error) {
-            console.error(error);
-            toast.error("An error occurred");
-            return false;
-        }
-    };
+  const uploadSingleDocument = async (type, file) => {
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
 
-    // Submit all documents for verification
-    const submitForVerification = async () => {
-        try {
-            const res = await fetch(`${API_BASE_URL}/api/users/me/submit-verification`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include"
-            });
+      const res = await fetch(
+        `${config.basePath}/api/verification/documents/${type}`,
+        {
+          method: "POST",
+          body: formData,
+          // No Authorization header needed — the Route Handler reads the
+          // HttpOnly cookie and forwards it to Spring Boot server-side.
+        },
+      );
 
-            const data = await res.json();
-            if (res.ok && data.success) {
-                toast.success("Verification submitted! Our team will review your documents.");
-                setStatus(data.data.status);
-                setDocuments(data.data.submittedDocuments || []);
-                setRequiredDocuments(data.data.requiredDocuments || []);
-                setSubmittedAt(data.data.submittedAt || null);
-                return true;
-            } else {
-                toast.error(data.message || "Failed to submit verification");
-                return false;
-            }
-        } catch (error) {
-            console.error(error);
-            toast.error("An error occurred");
-            return false;
-        }
-    };
+      const data = await res.json();
 
-    // Legacy batch upload (backwards compatible)
-    const uploadDocuments = async (files, documentTypes) => {
-        try {
-            setLoading(true);
-            const formData = new FormData();
+      if (res.ok && data.success) {
+        toast.success("Document uploaded successfully");
+        applyVerificationData(data.data);
+        return true;
+      } else {
+        toast.error(data.message || "Failed to upload document");
+        return false;
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("An error occurred during upload");
+      return false;
+    }
+  };
 
-            files.forEach(file => {
-                formData.append('documents', file);
-            });
+  // ── Delete a single document ────────────────────────────────────────────────
+  //
+  // Also goes through the Route Handler — same cookie forwarding logic.
 
-            Object.entries(documentTypes).forEach(([key, value]) => {
-                formData.append(`documentTypes[${key}]`, value);
-            });
+  const deleteSingleDocument = async (type) => {
+    try {
+      const res = await fetch(
+        `${config.basePath}/api/verification/documents/${type}`,
+        {
+          method: "DELETE",
+        },
+      );
 
-            const res = await fetch(`${API_BASE_URL}/api/users/me/documents`, {
-                method: "POST",
-                credentials: "include",
-                body: formData
-            });
+      const data = await res.json();
 
-            const data = await res.json();
-            if (res.ok && data.success) {
-                toast.success("Documents uploaded successfully");
-                await fetchVerificationStatus();
-                return true;
-            } else {
-                toast.error(data.message || "Failed to upload documents");
-                return false;
-            }
-        } catch (error) {
-            console.error(error);
-            toast.error("An error occurred during upload");
-            return false;
-        } finally {
-            setLoading(false);
-        }
-    };
+      if (res.ok && data.success) {
+        toast.success("Document removed");
+        applyVerificationData(data.data);
+        return true;
+      } else {
+        toast.error(data.message || "Failed to remove document");
+        return false;
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("An error occurred");
+      return false;
+    }
+  };
 
-    useEffect(() => {
-        fetchVerificationStatus();
-    }, [fetchVerificationStatus]);
+  // ── Submit for verification ─────────────────────────────────────────────────
 
-    return {
-        status,
-        documents,
-        requiredDocuments,
-        notes,
-        submittedAt,
-        reviewedAt,
-        loading,
-        uploadDocuments,
-        uploadSingleDocument,
-        deleteSingleDocument,
-        submitForVerification,
-        refresh: fetchVerificationStatus
-    };
+  const submitForVerification = async () => {
+    try {
+      const result = await submitForVerificationAction();
+
+      if (result.success) {
+        toast.success(
+          "Verification submitted! Our team will review your documents.",
+        );
+        applyVerificationData(result.data);
+        return true;
+      } else {
+        toast.error(result.message);
+        return false;
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("An error occurred");
+      return false;
+    }
+  };
+
+  // ── Batch upload (legacy) ───────────────────────────────────────────────────
+
+  const uploadDocuments = async (files, documentTypes) => {
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      files.forEach((file) => formData.append("documents", file));
+      Object.entries(documentTypes).forEach(([key, value]) =>
+        formData.append(`documentTypes[${key}]`, value),
+      );
+
+      const result = await uploadDocumentsBatchAction(formData);
+
+      if (result.success) {
+        toast.success("Documents uploaded successfully");
+        await fetchVerificationStatus();
+        return true;
+      } else {
+        toast.error(result.message);
+        return false;
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("An error occurred during upload");
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return {
+    status,
+    documents,
+    requiredDocuments,
+    notes,
+    submittedAt,
+    reviewedAt,
+    loading,
+    uploadDocuments,
+    uploadSingleDocument,
+    deleteSingleDocument,
+    submitForVerification,
+    refresh: fetchVerificationStatus,
+  };
 }

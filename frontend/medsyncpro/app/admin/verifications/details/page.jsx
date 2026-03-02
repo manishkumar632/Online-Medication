@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { API_BASE_URL } from "@/lib/config";
+import { config } from "@/lib/config";
 import { Check, X, ArrowLeft, FileText, User as UserIcon, Loader2, Eye, Download } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/app/context/AuthContext";
@@ -24,7 +24,7 @@ function VerificationDetailsContent() {
 
         const fetchDetails = async () => {
             try {
-                const res = await fetch(`${API_BASE_URL}/api/admin/verifications/${id}`, {
+                const res = await fetch(`${config.apiUrl}/admin/verifications/${id}`, {
                     headers: { "Content-Type": "application/json" },
                     credentials: "include"
                 });
@@ -56,7 +56,7 @@ function VerificationDetailsContent() {
         setRequest(prev => ({ ...prev, status: action === 'approve' ? 'VERIFIED' : 'REJECTED' }));
 
         try {
-            const res = await fetch(`${API_BASE_URL}/api/admin/verifications/${id}/${action}`, {
+            const res = await fetch(`${config.apiUrl}/admin/verifications/${id}/${action}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",

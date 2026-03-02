@@ -1,7 +1,8 @@
 "use client";
 import { useRef } from "react";
 import { useAuth } from "../context/AuthContext";
-import { API_BASE_URL } from "@/lib/config";
+import { config } from "@/lib/config";
+
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -30,7 +31,7 @@ const Header = () => {
 
     const handleLogout = async () => {
         try {
-            await fetch(`${API_BASE_URL}/api/auth/logout`, {
+            await fetch(`${config.apiUrl}/auth/logout`, {
                 method: "POST",
                 credentials: "include",
             });

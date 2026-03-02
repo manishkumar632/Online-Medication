@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
-import { API_BASE_URL } from "../../lib/config";
+import { config } from "../../lib/config";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import "./patient-profile.css";
@@ -77,7 +77,7 @@ export default function PatientProfilePage() {
         if (!user) return;
         const loadProfile = async () => {
             try {
-                const res = await fetch(`${API_BASE_URL}/api/users/profile`, {
+                const res = await fetch(`${config.apiUrl}/users/profile`, {
                     credentials: "include",
                 });
                 if (res.ok) {
@@ -148,7 +148,7 @@ export default function PatientProfilePage() {
                 formData.append("profileImage", selectedImageFile);
             }
 
-            const res = await fetch(`${API_BASE_URL}/api/users/profile`, {
+            const res = await fetch(`${config.apiUrl}/users/profile`, {
                 method: "PATCH",
                 credentials: "include",
                 body: formData,

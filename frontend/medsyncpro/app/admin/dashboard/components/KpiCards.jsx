@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Users, Stethoscope, Pill, CalendarCheck, DollarSign, ShieldCheck, TrendingUp, TrendingDown } from "lucide-react";
-import { API_BASE_URL } from "@/lib/config";
+import { config } from "@/lib/config";
 
 const sparkData = [30, 45, 35, 55, 48, 60, 52, 68, 58, 72, 65, 78];
 
@@ -11,7 +11,7 @@ export default function KpiCards() {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        fetch(`${API_BASE_URL}/api/admin/stats`, {
+        fetch(`${config.apiUrl}/admin/stats`, {
             credentials: "include",
         })
             .then((res) => {

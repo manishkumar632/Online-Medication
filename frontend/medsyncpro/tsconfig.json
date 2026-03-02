@@ -29,6 +29,6 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
-  ],
+, "lib/auth.service.js", "action/authAction.js", "app/context/AuthContext.jsx", "app/auth/login/page.jsx", "lib/constants.js", "types/auth.js", "lib/api-client.js", "lib/config.js", "proxy.js"  ],
   "exclude": ["node_modules"]
 }
