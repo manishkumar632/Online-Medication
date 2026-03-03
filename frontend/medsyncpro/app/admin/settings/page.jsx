@@ -1,14 +1,21 @@
 "use client";
 import "./settings.css";
-import { useState, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Settings, Shield, Users, CheckCircle2, Calendar, Pill, Bell, Plug, Lock,
   Flag, FileText, CreditCard, Save, X, ChevronRight, Upload, Eye, EyeOff,
   RefreshCw, Trash2, Plus, ToggleLeft, ToggleRight, Download, Search,
   Globe, Mail, Clock, Monitor, Heart, Zap, AlertTriangle, Check, Copy,
-  Server, Database, Cloud, Key, ChevronDown, ChevronUp, ExternalLink
+  Server, Database, Cloud, Key, ChevronDown, ChevronUp, ExternalLink, Loader
 } from "lucide-react";
+import {
+  createDocumentTypeAction,
+  removeDocumentTypeMappingAction,
+  toggleRequiredAction,
+  toggleActiveAction,
+} from "@/actions/documentTypeAction";
+import { config } from "@/lib/config";
 
 /* ─── MOCK DATA ─── */
 const INITIAL_GENERAL = { platformName: "MedSyncPro", supportEmail: "support@medsyncpro.com", language: "en", timezone: "America/New_York", maintenanceMode: false };
@@ -20,7 +27,7 @@ const ROLES = [
 ];
 const PERM_LABELS = { dashboard: "Dashboard", users: "User Management", doctors: "Doctor Management", pharmacists: "Pharmacist Management", appointments: "Appointments", prescriptions: "Prescriptions", payments: "Payments", reports: "Reports", settings: "Settings", audit: "Audit Logs" };
 
-const VERIF_RULES = { doctorDocs: ["Medical License", "Board Certification", "ID Proof", "DEA Registration"], pharmacistDocs: ["Pharmacy License", "State Certification", "ID Proof", "Compliance Certificate"], autoApproval: false, reVerifyMonths: 12 };
+/* VERIF_RULES removed — now fetched dynamically from /api/admin/document-types/[model] */
 
 const APPT_RULES = { defaultDuration: 30, cancellationWindow: 24, rescheduleLimit: 3, autoReminder: true, reminderHours: 2, noShowPolicy: "warn" };
 const RX_RULES = { expiryDays: 30, refillLimit: 3, controlledRestricted: true, templateEnabled: true };
@@ -89,7 +96,7 @@ function SettingsContent() {
   const [saveMsg, setSaveMsg] = useState("");
   const [general, setGeneral] = useState(INITIAL_GENERAL);
   const [roles, setRoles] = useState(ROLES);
-  const [verif, setVerif] = useState(VERIF_RULES);
+
   const [appt, setAppt] = useState(APPT_RULES);
   const [rx, setRx] = useState(RX_RULES);
   const [notifs, setNotifs] = useState(NOTIF_EVENTS);
@@ -132,7 +139,7 @@ function SettingsContent() {
       <div className="as-content">
         {activeSection === "general" && <GeneralSection data={general} update={updateGeneral} />}
         {activeSection === "roles" && <RolesSection roles={roles} togglePerm={togglePerm} />}
-        {activeSection === "verification" && <VerificationSection data={verif} update={(k, v) => { setVerif(p => ({ ...p, [k]: v })); markDirty(); }} />}
+        {activeSection === "verification" && <VerificationSection />}
         {activeSection === "appointments" && <AppointmentSection data={appt} update={updateAppt} />}
         {activeSection === "prescriptions" && <PrescriptionSection data={rx} update={updateRx} />}
         {activeSection === "notifications" && <NotifSection data={notifs} toggle={toggleNotif} />}
@@ -252,30 +259,208 @@ function RolesSection({ roles, togglePerm }) {
   );
 }
 
-/* ─── Verification ─── */
-function VerificationSection({ data, update }) {
+/* ─── Verification (dynamic, DB-driven) ─── */
+const MODEL_TABS = [
+  { key: "DOCTOR", label: "Doctor", color: "#0891b2" },
+  { key: "PHARMACIST", label: "Pharmacist", color: "#8b5cf6" },
+  { key: "AGENT", label: "Agent", color: "#f59e0b" },
+];
+
+function VerificationSection() {
+  const [activeModel, setActiveModel] = useState("DOCTOR");
+  const [docTypes, setDocTypes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [busy, setBusy] = useState(null);   // mapping id of in-flight op
+  const [showForm, setShowForm] = useState(false);
+  const [formName, setFormName] = useState("");
+  const [formDesc, setFormDesc] = useState("");
+  const [formRequired, setFormRequired] = useState(true);
+  const [formError, setFormError] = useState("");
+
+  /* ── Fetch doc-type configs for the active model tab ── */
+  const fetchDocTypes = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `${config.basePath}/api/admin/document-types/${activeModel}`,
+      );
+      const json = await res.json();
+      if (json.success) setDocTypes(json.data ?? []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeModel]);
+
+  useEffect(() => { fetchDocTypes(); }, [fetchDocTypes]);
+
+  /* ── Handlers ── */
+  async function handleCreate(e) {
+    e.preventDefault();
+    if (!formName.trim()) return;
+    setCreating(true);
+    setFormError("");
+    const res = await createDocumentTypeAction({
+      name: formName.trim(),
+      description: formDesc.trim(),
+      modelType: activeModel,
+      required: formRequired,
+      displayOrder: docTypes.length + 1,
+    });
+    if (res.success) {
+      setFormName(""); setFormDesc(""); setFormRequired(true); setShowForm(false);
+      fetchDocTypes();
+    } else {
+      setFormError(res.message);
+    }
+    setCreating(false);
+  }
+
+  async function handleToggleRequired(mappingId) {
+    setBusy(mappingId);
+    await toggleRequiredAction(mappingId);
+    await fetchDocTypes();
+    setBusy(null);
+  }
+
+  async function handleToggleActive(mappingId) {
+    setBusy(mappingId);
+    await toggleActiveAction(mappingId);
+    await fetchDocTypes();
+    setBusy(null);
+  }
+
+  async function handleRemove(mappingId) {
+    if (!confirm("Remove this document type from the model? This cannot be undone.")) return;
+    setBusy(mappingId);
+    await removeDocumentTypeMappingAction(mappingId);
+    await fetchDocTypes();
+    setBusy(null);
+  }
+
+  const activeTab = MODEL_TABS.find(t => t.key === activeModel);
+
   return (
     <div className="as-section">
+      {/* ── Model tab selector ── */}
       <div className="as-card admin-glass-card">
-        <h3>Doctor Verification Documents</h3>
-        <div className="as-doc-list">{data.doctorDocs.map((d, i) => <div key={i} className="as-doc-item"><CheckCircle2 size={14} style={{ color: "#10b981" }} /><span>{d}</span></div>)}</div>
-      </div>
-      <div className="as-card admin-glass-card">
-        <h3>Pharmacist Verification Documents</h3>
-        <div className="as-doc-list">{data.pharmacistDocs.map((d, i) => <div key={i} className="as-doc-item"><CheckCircle2 size={14} style={{ color: "#0891b2" }} /><span>{d}</span></div>)}</div>
-      </div>
-      <div className="as-card admin-glass-card">
-        <div className="as-toggle-row"><div><h3>Auto-Approval</h3><p className="as-toggle-desc">Automatically approve users when all documents are verified</p></div>
-          <button className={`as-toggle ${data.autoApproval ? "on" : ""}`} onClick={() => update("autoApproval", !data.autoApproval)}>{data.autoApproval ? <ToggleRight size={28} /> : <ToggleLeft size={28} />}</button>
+        <div className="vdt-tabs">
+          {MODEL_TABS.map(t => (
+            <button
+              key={t.key}
+              className={`vdt-tab ${activeModel === t.key ? "active" : ""}`}
+              style={activeModel === t.key ? { borderColor: t.color, color: t.color } : {}}
+              onClick={() => setActiveModel(t.key)}
+            >
+              <span className="vdt-tab-dot" style={{ background: t.color }} />
+              {t.label}
+            </button>
+          ))}
         </div>
       </div>
-      <div className="as-card admin-glass-card">
-        <div className="as-form-grid"><div className="as-field"><label>Re-Verification Period (months)</label><input type="number" value={data.reVerifyMonths} onChange={e => update("reVerifyMonths", Number(e.target.value))} /></div></div>
-      </div>
+
+      {/* ── Doc-type cards or loading ── */}
+      {loading ? (
+        <div className="as-card admin-glass-card" style={{ textAlign: "center", padding: "2rem" }}>
+          <Loader size={20} className="vdt-spin" style={{ color: activeTab?.color }} /> Loading document types…
+        </div>
+      ) : (
+        <>
+          {docTypes.length === 0 && (
+            <div className="as-card admin-glass-card" style={{ textAlign: "center", padding: "1.5rem", opacity: 0.7 }}>
+              No document types configured for <strong>{activeTab?.label}</strong> yet.
+            </div>
+          )}
+
+          {docTypes.map(dt => (
+            <div key={dt.id} className={`as-card admin-glass-card vdt-doc-card ${!dt.active ? "vdt-inactive" : ""}`}>
+              <div className="vdt-doc-row">
+                <div className="vdt-doc-info">
+                  <h4>{dt.name}</h4>
+                  {dt.description && <p className="vdt-doc-desc">{dt.description}</p>}
+                  <div className="vdt-badges">
+                    <span className={`vdt-badge ${dt.required ? "required" : "optional"}`}>
+                      {dt.required ? "Required" : "Optional"}
+                    </span>
+                    <span className={`vdt-badge ${dt.active ? "active" : "inactive"}`}>
+                      {dt.active ? "Active" : "Inactive"}
+                    </span>
+                    <span className="vdt-badge code">{dt.code}</span>
+                  </div>
+                </div>
+
+                <div className="vdt-doc-actions">
+                  <button
+                    className={`as-toggle ${dt.required ? "on" : ""}`}
+                    onClick={() => handleToggleRequired(dt.id)}
+                    disabled={busy === dt.id}
+                    title={dt.required ? "Make optional" : "Make required"}
+                  >
+                    {dt.required ? <ToggleRight size={22} /> : <ToggleLeft size={22} />}
+                  </button>
+                  <button
+                    className={`vdt-btn ${dt.active ? "warn" : "ok"}`}
+                    onClick={() => handleToggleActive(dt.id)}
+                    disabled={busy === dt.id}
+                  >
+                    {dt.active ? <EyeOff size={14} /> : <Eye size={14} />}
+                    {dt.active ? "Deactivate" : "Activate"}
+                  </button>
+                  <button
+                    className="vdt-btn danger"
+                    onClick={() => handleRemove(dt.id)}
+                    disabled={busy === dt.id}
+                  >
+                    <Trash2 size={14} /> Remove
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* ── Create form ── */}
+      {showForm ? (
+        <div className="as-card admin-glass-card vdt-create-card">
+          <form onSubmit={handleCreate} className="vdt-form">
+            <h3>Add Document Type to {activeTab?.label}</h3>
+            {formError && <p className="vdt-form-error"><AlertTriangle size={14} /> {formError}</p>}
+            <div className="as-form-grid">
+              <div className="as-field">
+                <label>Document Name *</label>
+                <input type="text" value={formName} onChange={e => setFormName(e.target.value)} placeholder="e.g. Medical License" required />
+              </div>
+              <div className="as-field">
+                <label>Description</label>
+                <input type="text" value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Optional description" />
+              </div>
+            </div>
+            <label className="vdt-check-row">
+              <input type="checkbox" checked={formRequired} onChange={e => setFormRequired(e.target.checked)} />
+              Required for verification
+            </label>
+            <div className="vdt-form-actions">
+              <button type="button" className="vdt-btn cancel" onClick={() => { setShowForm(false); setFormError(""); }}><X size={14} /> Cancel</button>
+              <button type="submit" className="vdt-btn save" disabled={creating}>
+                {creating ? <Loader size={14} className="vdt-spin" /> : <Plus size={14} />} Add Document Type
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : (
+        <button className="vdt-add-btn" onClick={() => setShowForm(true)}>
+          <Plus size={16} /> Add Document Type
+        </button>
+      )}
+
+      {/* ── Workflow preview ── */}
       <div className="as-card admin-glass-card as-workflow-preview">
         <h3>Verification Workflow</h3>
         <div className="as-workflow-steps">
-          {["User Registers", "Documents Uploaded", "Admin Review", data.autoApproval ? "Auto-Approved" : "Manual Approval", "Account Active"].map((s, i) => (
+          {["User Registers", "Documents Uploaded", "Admin Review", "Manual Approval", "Account Active"].map((s, i) => (
             <div key={i} className="as-wf-step"><div className="as-wf-num">{i + 1}</div><span>{s}</span>{i < 4 && <ChevronRight size={14} className="as-wf-arrow" />}</div>
           ))}
         </div>

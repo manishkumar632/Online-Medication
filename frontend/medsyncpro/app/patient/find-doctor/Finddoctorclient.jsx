@@ -3,10 +3,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../context/AuthContext";
+import { config } from "@/lib/config";
 import {
   fetchSpecialtiesAction,
   searchDoctorsAction,
-} from "@/action/Finddoctoraction";
+} from "@/actions/Finddoctoraction";
 import "../patient-dashboard.css";
 import "./find-doctor.css";
 
@@ -337,7 +338,7 @@ export default function FindDoctorClient() {
     window.history.replaceState(
       null,
       "",
-      `/patient/find-doctor?specialty=${encodeURIComponent(specialty.name)}`,
+      `${config.basePath}/patient/find-doctor?specialty=${encodeURIComponent(specialty.name)}`,
     );
     fetchDoctors({ specialty, query: "", pageNum: 0 });
   };
@@ -347,7 +348,11 @@ export default function FindDoctorClient() {
     setSelectedSpecialty(null);
     setDoctors([]);
     setDoctorSearch("");
-    window.history.replaceState(null, "", "/patient/find-doctor");
+    window.history.replaceState(
+      null,
+      "",
+      `${config.basePath}/patient/find-doctor`,
+    );
   };
 
   const handleViewProfile = (doc) => router.push(`/patient/doctors/${doc.id}`);

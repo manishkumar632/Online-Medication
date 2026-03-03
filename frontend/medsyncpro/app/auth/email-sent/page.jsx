@@ -3,7 +3,7 @@
 import { useActionState, useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { resendVerificationAction } from "@/action/authAction";
+import { resendVerificationAction } from "@/actions/authAction";
 
 // ─── Initial state ────────────────────────────────────────────────────────────
 const initialState = { success: false, error: null };
@@ -73,9 +73,15 @@ function EmailSentContent() {
           </svg>
         </div>
 
-        <h1 className="text-3xl font-extrabold text-gray-900 mb-2 tracking-tight">Check Your Email</h1>
-        <p className="text-gray-400 text-sm mb-1">We&rsquo;ve sent a verification link to</p>
-        <p className="text-[#0d7377] font-semibold text-base mb-8 break-all">{email}</p>
+        <h1 className="text-3xl font-extrabold text-gray-900 mb-2 tracking-tight">
+          Check Your Email
+        </h1>
+        <p className="text-gray-400 text-sm mb-1">
+          We&rsquo;ve sent a verification link to
+        </p>
+        <p className="text-[#0d7377] font-semibold text-base mb-8 break-all">
+          {email}
+        </p>
 
         <div className="flex flex-col gap-4 mb-6 text-left">
           {[
@@ -84,7 +90,9 @@ function EmailSentContent() {
             "Start using MedSyncpro",
           ].map((step, i) => (
             <div key={i} className="flex items-center gap-3.5">
-              <span className="w-8 h-8 rounded-full bg-[#0d7377] text-white flex items-center justify-center text-xs font-bold flex-shrink-0">{i + 1}</span>
+              <span className="w-8 h-8 rounded-full bg-[#0d7377] text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
+                {i + 1}
+              </span>
               <span className="text-sm text-gray-600">{step}</span>
             </div>
           ))}
@@ -92,7 +100,10 @@ function EmailSentContent() {
 
         {/* Server error banner */}
         {state.error && (
-          <div role="alert" className="p-2.5 px-3.5 bg-red-50 border border-red-200 rounded-lg text-red-600 text-xs mb-3 text-left">
+          <div
+            role="alert"
+            className="p-2.5 px-3.5 bg-red-50 border border-red-200 rounded-lg text-red-600 text-xs mb-3 text-left"
+          >
             {state.error}
           </div>
         )}
@@ -108,7 +119,9 @@ function EmailSentContent() {
             type="submit"
             disabled={isDisabled}
             className={`w-full py-3 px-6 bg-transparent border-[1.5px] border-[#0d7377] rounded-full text-[#0d7377] text-sm font-semibold mb-4 transition-all ${
-              isDisabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:bg-[#0d7377] hover:text-white"
+              isDisabled
+                ? "opacity-60 cursor-not-allowed"
+                : "cursor-pointer hover:bg-[#0d7377] hover:text-white"
             }`}
           >
             {getButtonLabel()}
@@ -117,13 +130,19 @@ function EmailSentContent() {
 
         <p className="text-gray-400 text-xs mb-6">
           Didn&rsquo;t receive the email? Check your spam folder or{" "}
-          <Link href="/auth/signup" className="text-[#0d7377] font-semibold no-underline hover:underline">
+          <Link
+            href="/auth/signup"
+            className="text-[#0d7377] font-semibold no-underline hover:underline"
+          >
             try signing up again
           </Link>
           .
         </p>
 
-        <Link href="/auth/login" className="inline-flex items-center justify-center bg-[#0d7377] text-white border-none rounded-full py-3.5 px-10 text-sm font-semibold no-underline cursor-pointer hover:bg-[#0a5c5f] transition-colors">
+        <Link
+          href="/auth/login"
+          className="inline-flex items-center justify-center bg-[#0d7377] text-white border-none rounded-full py-3.5 px-10 text-sm font-semibold no-underline cursor-pointer hover:bg-[#0a5c5f] transition-colors"
+        >
           Go to Login
         </Link>
       </div>
@@ -146,5 +165,3 @@ export default function EmailSentPage() {
     </Suspense>
   );
 }
-
-

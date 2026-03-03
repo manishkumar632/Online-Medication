@@ -5,19 +5,22 @@ import {
   fetchVerificationStatusAction,
   submitForVerificationAction,
   uploadDocumentsBatchAction,
-} from "@/action/verificationAction";
+} from "@/actions/verificationAction";
 
 /**
  * useVerification
  *
- * Manages professional verification state for doctors and pharmacists.
+ * Manages professional verification state for doctors, pharmacists, and agents.
  *
  * Data flow:
  *   • Status / submit / batch-upload  →  server actions (verificationAction.js)
- *   • Single file upload / delete     →  Route Handler (/api/verification/documents/:type)
+ *   • Single file upload / delete     →  Route Handler (/api/verification/documents/:documentTypeId)
  *
  * The browser never calls Spring Boot directly — the access_token cookie
  * is read and forwarded server-side in both paths.
+ *
+ * NOTE: Document types are now dynamic (DB-driven). The `type` parameter
+ * in upload/delete is now a document type ID (number), not an enum string.
  */
 export default function useVerification() {
   const [status, setStatus] = useState("UNVERIFIED");
@@ -61,17 +64,17 @@ export default function useVerification() {
 
   // ── Upload a single document ────────────────────────────────────────────────
   //
-  // Goes through the Route Handler at /api/verification/documents/:type.
+  // Goes through the Route Handler at /api/verification/documents/:documentTypeId.
   // The handler reads the HttpOnly cookie server-side and pipes the multipart
   // body directly to Spring Boot — the file is never buffered in Next.js memory.
 
-  const uploadSingleDocument = async (type, file) => {
+  const uploadSingleDocument = async (documentTypeId, file) => {
     try {
       const formData = new FormData();
       formData.append("file", file);
 
       const res = await fetch(
-        `${config.basePath}/api/verification/documents/${type}`,
+        `${config.basePath}/api/verification/documents/${documentTypeId}`,
         {
           method: "POST",
           body: formData,
@@ -101,10 +104,10 @@ export default function useVerification() {
   //
   // Also goes through the Route Handler — same cookie forwarding logic.
 
-  const deleteSingleDocument = async (type) => {
+  const deleteSingleDocument = async (documentTypeId) => {
     try {
       const res = await fetch(
-        `${config.basePath}/api/verification/documents/${type}`,
+        `${config.basePath}/api/verification/documents/${documentTypeId}`,
         {
           method: "DELETE",
         },

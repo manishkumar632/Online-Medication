@@ -4,7 +4,7 @@
  * AuthContext.jsx
  *
  * Provides auth state to the client component tree.
- * Hydrates from the server on mount via a Server Action.
+ * Hydrates from sessionStorage first (instant), then validates via Server Action.
  * The client never sees the JWT — only the decoded User object.
  */
 
@@ -15,13 +15,46 @@ import {
   useEffect,
   useCallback,
 } from "react";
-import { getSession, logoutAction } from "@/action/authAction";
+import { getSession, logoutAction } from "@/actions/authAction";
 import { ROLE_ROUTES, ROUTES } from "@/lib/constants";
+
+// ─── Session Storage Key ──────────────────────────────────────────────────────
+
+const SESSION_KEY = "medsyncpro_user";
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
 export function getRedirectPath(role) {
   return ROLE_ROUTES[role] ?? ROUTES.HOME;
+}
+
+function readSessionStorage() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionStorage(user) {
+  try {
+    if (user) {
+      sessionStorage.setItem(
+        SESSION_KEY,
+        JSON.stringify({
+          userId: user.userId,
+          role: user.role,
+          name: user.name,
+          email: user.email,
+        })
+      );
+    } else {
+      sessionStorage.removeItem(SESSION_KEY);
+    }
+  } catch {
+    // sessionStorage unavailable — non-critical
+  }
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -32,17 +65,30 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
 
-  // Hydrate on mount via Server Action — reads the HttpOnly cookie server-side.
+  // Hydrate: sessionStorage first (instant), then verify via Server Action.
   useEffect(() => {
+    const cached = readSessionStorage();
+    if (cached) {
+      setUser(cached);
+      setReady(true);
+    }
+
     getSession()
-      .then((sessionUser) => setUser(sessionUser ?? null))
-      .catch(() => setUser(null))
+      .then((sessionUser) => {
+        setUser(sessionUser ?? null);
+        writeSessionStorage(sessionUser);
+      })
+      .catch(() => {
+        setUser(null);
+        writeSessionStorage(null);
+      })
       .finally(() => setReady(true));
   }, []);
 
   /** Sync client state after a successful loginAction. */
   const login = useCallback((userData) => {
     setUser(userData);
+    writeSessionStorage(userData);
   }, []);
 
   /**
@@ -54,18 +100,25 @@ export function AuthProvider({ children }) {
     try {
       const sessionUser = await getSession();
       setUser(sessionUser ?? null);
+      writeSessionStorage(sessionUser);
     } catch {
       // If the session check fails, leave the current user state intact.
     }
   }, []);
 
   const updateProfile = useCallback((updates) => {
-    setUser((prev) => (prev ? { ...prev, ...updates } : prev));
+    setUser((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev, ...updates };
+      writeSessionStorage(updated);
+      return updated;
+    });
   }, []);
 
   const logout = useCallback(async () => {
     await logoutAction();
     setUser(null);
+    writeSessionStorage(null);
   }, []);
 
   return (

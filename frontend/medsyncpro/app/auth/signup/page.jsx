@@ -1,17 +1,11 @@
 "use client";
 
-/**
- * app/auth/signup/page.jsx
- *
- * Presentation only — zero business logic, zero API calls.
- */
-
 import { useActionState, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { toast } from "sonner";
-import { signupAction } from "@/action/authAction";
+import { signupAction } from "@/actions/authAction";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,71 +42,46 @@ const ROLES = [
 
 const DEFAULT_ROLE = "PATIENT";
 
-/**
- * `success` is the key field.
- *
- * initialState has success: false  → effect never redirects on mount.
- * signupAction returns success: true on a successful registration.
- * Only that transition triggers the redirect.
- *
- * @type {{ success: boolean, error: string|null, isLoading: boolean }}
- */
-const initialState = {
-  success: false,
-  error: null,
-  isLoading: false,
-};
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SignupPage() {
-  const router = useRouter();
-
   // ── UI state ────────────────────────────────────────────────────────────────
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [selectedRole, setSelectedRole] = useState(DEFAULT_ROLE);
-
-  // Captures email at submit time for the redirect URL — avoids controlled state.
-  const emailRef = useRef("");
-
-  // ── Server action ───────────────────────────────────────────────────────────
-  const [state, formAction, isPending] = useActionState(
-    signupAction,
-    initialState,
-  );
-
-  // ── Side-effects ────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    // Only act when the action has explicitly returned success: true.
-    // initialState has success: false so this never fires on mount or on
-    // unrelated re-renders (e.g. AuthContext hydrating).
-    if (state.success) {
-      router.push(
-        `/auth/email-sent?email=${encodeURIComponent(emailRef.current)}`,
-      );
-      return;
-    }
-
-    // Show toast for server-returned errors (complements the inline banner).
-    if (state.error) {
-      toast.error(state.error);
-    }
-  }, [state, router]);
-
-  // ── Helpers ─────────────────────────────────────────────────────────────────
+  const [error, setError] = useState(null);
+  const [isPending, setIsPending] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   function handleRoleSelect(value) {
     setSelectedRole(value);
   }
 
-  // Capture email and inject role before handing off to the server action.
-  // We set role from React state directly — more reliable than reading the DOM.
-  function handleFormAction(formData) {
-    emailRef.current = formData.get("email") ?? "";
-    formData.set("role", selectedRole);
-    return formAction(formData);
+  async function handleFormAction() {
+    setIsPending(true);
+    const response = await fetch("/online-medication/api/auth/signup", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email,
+        password,
+        role: selectedRole,
+        name,
+        termsAccepted,
+      }),
+    });
+
+    if (!response.ok) {
+      const clone = await response.json();
+      console.log("response data: ", clone);
+      setIsPending(false);
+    }
   }
 
   const currentRole = ROLES.find((r) => r.value === selectedRole);
@@ -157,13 +126,13 @@ export default function SignupPage() {
           </div>
 
           {/* Inline error banner */}
-          {state.error && (
+          {error && (
             <div
               role="alert"
               className="flex items-center gap-2.5 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm mb-4"
             >
               <ErrorIcon />
-              {state.error}
+              {error}
             </div>
           )}
 
@@ -180,6 +149,8 @@ export default function SignupPage() {
                 id="name"
                 name="name"
                 type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 autoComplete="name"
                 placeholder="John Doe"
                 required
@@ -199,6 +170,8 @@ export default function SignupPage() {
                 id="email"
                 name="email"
                 type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
                 placeholder="you@example.com"
                 required
@@ -218,6 +191,8 @@ export default function SignupPage() {
                 <input
                   id="password"
                   name="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   type={showPassword ? "text" : "password"}
                   autoComplete="new-password"
                   placeholder="••••••••"
@@ -248,6 +223,8 @@ export default function SignupPage() {
                 <input
                   id="confirmPassword"
                   name="confirmPassword"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                   type={showConfirmPassword ? "text" : "password"}
                   autoComplete="new-password"
                   placeholder="••••••••"
@@ -325,6 +302,7 @@ export default function SignupPage() {
                   type="checkbox"
                   name="termsAccepted"
                   value="on"
+                  onChange={(e) => setTermsAccepted(e.target.value)}
                   required
                   className="w-4 h-4 accent-cyan-500"
                 />

@@ -41,7 +41,7 @@ function BookAppointmentModal({ doctor, onClose, token }) {
 
     useEffect(() => {
         setSlotsLoading(true);
-        fetchWithAuth(`${API_BASE}/api/doctors/${doctor.id}/slots?type=${consultType}`, token)
+        fetchWithAuth(`${API_BASE}/doctors/${doctor.id}/slots?type=${consultType}`, token)
             .then(data => {
                 const list = Array.isArray(data) ? data : (data.slots || data.content || []);
                 setSlots(list);
@@ -186,7 +186,7 @@ export default function DoctorProfileClient() {
     const searchParams = useSearchParams();
     const { user, token } = useAuth();
 
-    const doctorId = params?.doctorId;
+    const doctorId = params?.id;
     const openBook = searchParams.get("action") === "book";
 
     const [doctor, setDoctor] = useState(null);
@@ -200,7 +200,7 @@ export default function DoctorProfileClient() {
     useEffect(() => {
         if (!doctorId) return;
         setLoading(true);
-        fetchWithAuth(`${API_BASE}/api/doctors/${doctorId}`, token)
+        fetchWithAuth(`${API_BASE}/doctors/${doctorId}`, token)
             .then(data => {
                 if (data.status === "UNVERIFIED" || data.status === "SUSPENDED") {
                     setError("This doctor is no longer available for appointments.");
@@ -229,7 +229,7 @@ export default function DoctorProfileClient() {
 
     if (!doctor) return null;
 
-    const name = doctor.name || doctor.fullName;
+    const name = doctor.name || doctor.fullName || "Doctor";
     const rating = doctor.averageRating ?? doctor.rating ?? null;
     const experience = doctor.experienceYears ?? doctor.yearsOfExperience ?? null;
     const qualifications = doctor.qualifications || doctor.education || [];
@@ -267,7 +267,7 @@ export default function DoctorProfileClient() {
                                 <img src={doctor.profileImageUrl || doctor.profilePhoto} alt={name} />
                             ) : (
                                 <span className="dp-hero-initials">
-                                    {name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
+                                    {(name || "Dr").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
                                 </span>
                             )}
                             <span className={`fd-avail-dot ${(doctor.availableToday ?? true) ? "available" : "busy"}`} style={{ width: 16, height: 16, bottom: 4, right: 4 }} />

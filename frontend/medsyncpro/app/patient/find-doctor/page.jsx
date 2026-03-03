@@ -1,13 +1,11 @@
 // app/patient/find-doctor/page.jsx
 "use client";
-
-import { useState } from "react";
-import { useAuth } from "../../context/AuthContext";
-import { useRouter } from "next/navigation";
 import RouteGuard from "../../components/RouteGuard";
 import FindDoctorClient from "./Finddoctorclient";
 import "../patient-dashboard.css";
 import "./find-doctor.css";
+import PatientSidebarLayout from "@/app/patient/components/PatientSidebarLayout";
+
 
 /* ─── SVG icon helper ─── */
 const I = ({ d, size = 18, stroke = "currentColor", fill = "none" }) => (
@@ -152,152 +150,8 @@ const NAV_ITEMS = [
   },
 ];
 
-function FindDoctorPage() {
-  const router = useRouter();
-  const { user } = useAuth();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
-  const initials = user?.name
-    ? user.name
-        .split(" ")
-        .map((w) => w[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    : "P";
-
+export default function FindDoctorPage() {
   return (
-    <div className="pd-layout">
-      {/* ═══ SIDEBAR — same structure as PatientDashboard ═══ */}
-      <aside className={`pd-sidebar ${sidebarCollapsed ? "collapsed" : ""}`}>
-        <div className="pd-sidebar-header">
-          <div className="pd-sidebar-logo">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-            >
-              <path d="M12 2v20M2 12h20" />
-            </svg>
-          </div>
-          <span className="pd-sidebar-brand">MedSync</span>
-        </div>
-        <nav className="pd-sidebar-nav">
-          {NAV_ITEMS.map((item) => (
-            <div
-              key={item.id}
-              className={`pd-nav-item ${item.id === "find-doctor" ? "active" : ""}`}
-              onClick={() => router.push(item.href)}
-            >
-              <span className="nav-icon">{item.icon}</span>
-              <span className="nav-label">{item.label}</span>
-              {item.badge && <span className="pd-nav-badge">{item.badge}</span>}
-            </div>
-          ))}
-        </nav>
-        <div className="pd-sidebar-footer">
-          <button
-            className="pd-sidebar-toggle"
-            onClick={() => setSidebarCollapsed((c) => !c)}
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              {sidebarCollapsed ? (
-                <path d="M9 18l6-6-6-6" />
-              ) : (
-                <path d="M15 18l-6-6 6-6" />
-              )}
-            </svg>
-            {!sidebarCollapsed && <span>Collapse</span>}
-          </button>
-        </div>
-      </aside>
-
-      {/* ═══ MAIN ═══ */}
-      <div className="pd-main">
-        {/* Navbar */}
-        <header className="pd-navbar">
-          <button
-            className="pd-nav-toggle"
-            onClick={() => setSidebarCollapsed((c) => !c)}
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M3 12h18M3 6h18M3 18h18" />
-            </svg>
-          </button>
-          <div className="pd-navbar-center">
-            <nav className="fd-breadcrumb">
-              <span
-                className="fd-bc-item"
-                onClick={() => router.push("/patient/dashboard")}
-              >
-                Dashboard
-              </span>
-              <span className="fd-bc-sep">›</span>
-              <span className="fd-bc-item active">Find Doctor</span>
-            </nav>
-          </div>
-          <div className="pd-navbar-right">
-            <button className="pd-icon-btn" title="Notifications">
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-              </svg>
-              <span className="notif-dot" />
-            </button>
-            <div
-              className="pd-avatar-sm"
-              onClick={() => router.push("/patient")}
-            >
-              {user?.profileImage || user?.profileImageUrl ? (
-                <img
-                  src={user.profileImage || user.profileImageUrl}
-                  alt={user?.name}
-                />
-              ) : (
-                initials
-              )}
-            </div>
-          </div>
-        </header>
-
-        {/* Content — FindDoctorClient renders only the inner content */}
-        <div className="pd-content">
-          <FindDoctorClient />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default function FindDoctorPageWrapper() {
-  return (
-    <RouteGuard allowedRoles={["PATIENT"]}>
-      <FindDoctorPage />
-    </RouteGuard>
+      <FindDoctorClient />
   );
 }

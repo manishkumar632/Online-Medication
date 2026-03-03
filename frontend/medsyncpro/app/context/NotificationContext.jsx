@@ -29,7 +29,7 @@ import {
   fetchUnreadCountAction,
   markAsReadAction,
   registerFcmTokenAction,
-} from "@/action/notificationAction";
+} from "@/actions/notificationAction";
 
 const NotificationContext = createContext(null);
 

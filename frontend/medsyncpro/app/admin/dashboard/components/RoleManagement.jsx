@@ -21,7 +21,7 @@ import {
   fetchUserCountAction,
   approveUserAction,
   suspendUserAction,
-} from "@/action/adminAction";
+} from "@/actions/adminAction";
 
 const avatarColors = [
   "#0d9488",

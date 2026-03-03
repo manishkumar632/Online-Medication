@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { verifyEmailAction } from "@/action/authAction";
+import { verifyEmailAction } from "@/actions/authAction";
 
 // ─── Inner component (needs useSearchParams, so must be inside Suspense) ──────
 
@@ -37,7 +37,9 @@ function VerifyEmailContent() {
             <div className="flex justify-center mb-6">
               <div className="w-12 h-12 border-4 border-[#0d7377]/15 border-t-[#0d7377] rounded-full animate-spin" />
             </div>
-            <h2 className="text-3xl font-extrabold text-gray-900 mb-2 tracking-tight">Verifying Your Email…</h2>
+            <h2 className="text-3xl font-extrabold text-gray-900 mb-2 tracking-tight">
+              Verifying Your Email…
+            </h2>
             <p className="text-gray-500 text-sm mb-7 leading-relaxed">
               Please wait while we verify your email address.
             </p>
@@ -62,9 +64,16 @@ function VerifyEmailContent() {
                 <polyline points="22 4 12 14.01 9 11.01" />
               </svg>
             </div>
-            <h2 className="text-3xl font-extrabold text-gray-900 mb-2 tracking-tight">Email Verified!</h2>
-            <p className="text-gray-500 text-sm mb-7 leading-relaxed">{message}</p>
-            <Link href="/auth/login" className="inline-flex items-center justify-center bg-[#0d7377] text-white border-none rounded-full py-3.5 px-10 text-sm font-semibold no-underline cursor-pointer hover:bg-[#0a5c5f] transition-colors">
+            <h2 className="text-3xl font-extrabold text-gray-900 mb-2 tracking-tight">
+              Email Verified!
+            </h2>
+            <p className="text-gray-500 text-sm mb-7 leading-relaxed">
+              {message}
+            </p>
+            <Link
+              href="/auth/login"
+              className="inline-flex items-center justify-center bg-[#0d7377] text-white border-none rounded-full py-3.5 px-10 text-sm font-semibold no-underline cursor-pointer hover:bg-[#0a5c5f] transition-colors"
+            >
               Go to Login
             </Link>
           </>
@@ -89,9 +98,16 @@ function VerifyEmailContent() {
                 <line x1="9" y1="9" x2="15" y2="15" />
               </svg>
             </div>
-            <h2 className="text-3xl font-extrabold text-gray-900 mb-2 tracking-tight">Verification Failed</h2>
-            <p className="text-gray-500 text-sm mb-7 leading-relaxed">{message}</p>
-            <Link href="/auth/signup" className="inline-flex items-center justify-center bg-[#0d7377] text-white border-none rounded-full py-3.5 px-10 text-sm font-semibold no-underline cursor-pointer hover:bg-[#0a5c5f] transition-colors">
+            <h2 className="text-3xl font-extrabold text-gray-900 mb-2 tracking-tight">
+              Verification Failed
+            </h2>
+            <p className="text-gray-500 text-sm mb-7 leading-relaxed">
+              {message}
+            </p>
+            <Link
+              href="/auth/signup"
+              className="inline-flex items-center justify-center bg-[#0d7377] text-white border-none rounded-full py-3.5 px-10 text-sm font-semibold no-underline cursor-pointer hover:bg-[#0a5c5f] transition-colors"
+            >
               Back to Signup
             </Link>
           </>
@@ -118,5 +134,3 @@ export default function VerifyEmailPage() {
     </Suspense>
   );
 }
-
-

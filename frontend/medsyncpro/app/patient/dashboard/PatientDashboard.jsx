@@ -4,6 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useRouter } from "next/navigation";
 import "../patient-dashboard.css";
 import FindDoctorClient from "../find-doctor/Finddoctorclient";
+import PatientSidebarLayout from "../components/PatientSidebarLayout";
 
 /* ─── Tiny SVG Icon helper ─── */
 const I = ({ d, size = 18, stroke = "currentColor", fill = "none" }) => (
@@ -521,49 +522,123 @@ export default function PatientDashboard() {
   };
 
   /* ──────────── RENDER ──────────── */
-  return (
-    <div className="pd-layout">
-      {/* ═══ SIDEBAR ═══ */}
-      <aside className={`pd-sidebar ${sidebarCollapsed ? "collapsed" : ""}`}>
-        <div className="pd-sidebar-header">
-          <div className="pd-sidebar-logo">
+    return (
+      <div className="lg:px-20">
+        {/* Greeting */}
+        <div className="pd-greeting">
+          <h1>Hello, {firstName} 👋</h1>
+          <p>Here's your health overview for today — stay on track!</p>
+        </div>
+
+        {/* Reminder Banner */}
+        <div className="pd-reminder-banner">
+          <div className="banner-icon">
             <svg
-              width="20"
-              height="20"
+              width="22"
+              height="22"
               viewBox="0 0 24 24"
               fill="none"
               stroke="white"
-              strokeWidth="2.5"
-              strokeLinecap="round"
+              strokeWidth="2"
             >
-              <path d="M12 2v20M2 12h20" />
+              <path d="M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Z" />
+              <path d="M16 2v4M8 2v4M3 10h18" />
             </svg>
           </div>
-          <span className="pd-sidebar-brand">MedSync</span>
+          <div className="banner-text">
+            <h3>Upcoming: Dr. Sarah Chen — Cardiology</h3>
+            <p>Tomorrow, March 2 at 10:00 AM • Video Consultation</p>
+          </div>
+          <button className="banner-action">View Details</button>
         </div>
-        <nav className="pd-sidebar-nav">
-          {NAV_ITEMS.map((item) => (
-            <div
-              key={item.id}
-              className={`pd-nav-item ${activeNav === item.id ? "active" : ""}`}
-              onClick={() => {
-                setActiveNav(item.id);
-                if (item.id === "profile") router.push("/patient");
-                if (item.id === "find-doctor")
-                  router.push("/patient/find-doctor");
-              }}
-            >
-              <span className="nav-icon">{item.icon}</span>
-              <span className="nav-label">{item.label}</span>
-              {item.badge && <span className="pd-nav-badge">{item.badge}</span>}
+
+        {/* KPI Cards */}
+        <div className="pd-kpi-grid">
+          <div className="pd-kpi-card">
+            <div className="pd-kpi-icon teal">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Z" />
+                <path d="M16 2v4M8 2v4M3 10h18" />
+              </svg>
             </div>
-          ))}
-        </nav>
-        <div className="pd-sidebar-footer">
-          <button
-            className="pd-sidebar-toggle"
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          >
+            <div className="pd-kpi-info">
+              <div className="kpi-label">Upcoming Appointments</div>
+              <div className="kpi-value">4</div>
+              <div className="kpi-sub">Next: Tomorrow 10 AM</div>
+            </div>
+          </div>
+          <div className="pd-kpi-card">
+            <div className="pd-kpi-icon blue">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v6m0 0H3m6 0h12M3 9v10a2 2 0 0 0 2 2h14a2 2 0 0 1-2-2V9" />
+              </svg>
+            </div>
+            <div className="pd-kpi-info">
+              <div className="kpi-label">Active Prescriptions</div>
+              <div className="kpi-value">3</div>
+              <div className="kpi-sub">1 refill needed</div>
+            </div>
+          </div>
+          <div className="pd-kpi-card">
+            <div className="pd-kpi-icon purple">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            </div>
+            <div className="pd-kpi-info">
+              <div className="kpi-label">Assigned Doctors</div>
+              <div className="kpi-value">4</div>
+              <div className="kpi-sub">2 unread messages</div>
+            </div>
+          </div>
+          <div className="pd-kpi-card">
+            <div className="pd-kpi-icon orange">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            </div>
+            <div className="pd-kpi-info">
+              <div className="kpi-label">Health Alerts</div>
+              <div className="kpi-value">1</div>
+              <div className="kpi-sub">Refill reminder</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="pd-quick-actions">
+          <button className="pd-quick-btn primary">
             <svg
               width="16"
               height="16"
@@ -572,39 +647,44 @@ export default function PatientDashboard() {
               stroke="currentColor"
               strokeWidth="2"
             >
-              {sidebarCollapsed ? (
-                <path d="M9 18l6-6-6-6" />
-              ) : (
-                <path d="M15 18l-6-6 6-6" />
-              )}
+              <path d="M12 5v14M5 12h14" />
             </svg>
-            {!sidebarCollapsed && <span>Collapse</span>}
+            Book Appointment
           </button>
-        </div>
-      </aside>
-
-      {/* ═══ MAIN ═══ */}
-      <div className="pd-main">
-        {/* ── Navbar ── */}
-        <header className="pd-navbar">
-          <button
-            className="pd-nav-toggle"
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          >
+          <button className="pd-quick-btn">
             <svg
-              width="20"
-              height="20"
+              width="16"
+              height="16"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
               strokeWidth="2"
             >
-              <path d="M3 12h18M3 6h18M3 18h18" />
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
             </svg>
+            Upload Report
           </button>
-          <div className="pd-navbar-search">
+          <button className="pd-quick-btn">
             <svg
-              className="search-icon"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M23 7l-7 5 7 5V7z" />
+              <rect x="1" y="5" width="15" height="14" rx="2" />
+            </svg>
+            Request Refill
+          </button>
+          <button
+            className="pd-quick-btn"
+            onClick={() => router.push("/patient/find-doctor")}
+          >
+            <svg
               width="16"
               height="16"
               viewBox="0 0 24 24"
@@ -615,537 +695,323 @@ export default function PatientDashboard() {
               <circle cx="11" cy="11" r="8" />
               <path d="M21 21l-4.35-4.35" />
             </svg>
-            <input
-              type="text"
-              placeholder="Search appointments, doctors, medicines..."
-            />
-          </div>
-          <div className="pd-navbar-right">
-            <button className="pd-icon-btn" title="Notifications">
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-              </svg>
-              <span className="notif-dot" />
-            </button>
-            <div
-              className="pd-avatar-sm"
-              onClick={() => router.push("/patient")}
+            Find Doctor
+          </button>
+          <button className="pd-quick-btn" style={{ color: "var(--pd-red)" }}>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
             >
-              {user?.profileImage || user?.profileImageUrl ? (
-                <img
-                  src={user.profileImage || user.profileImageUrl}
-                  alt={user?.name}
-                />
-              ) : (
-                initials
-              )}
-            </div>
-          </div>
-        </header>
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
+            </svg>
+            Emergency
+          </button>
+        </div>
 
-        {/* ── Content ── */}
-        <div className="pd-content">
-          {/* Greeting */}
-          <div className="pd-greeting">
-            <h1>Hello, {firstName} 👋</h1>
-            <p>Here's your health overview for today — stay on track!</p>
-          </div>
-
-          {/* Reminder Banner */}
-          <div className="pd-reminder-banner">
-            <div className="banner-icon">
-              <svg
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="white"
-                strokeWidth="2"
-              >
-                <path d="M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Z" />
-                <path d="M16 2v4M8 2v4M3 10h18" />
-              </svg>
-            </div>
-            <div className="banner-text">
-              <h3>Upcoming: Dr. Sarah Chen — Cardiology</h3>
-              <p>Tomorrow, March 2 at 10:00 AM • Video Consultation</p>
-            </div>
-            <button className="banner-action">View Details</button>
-          </div>
-
-          {/* KPI Cards */}
-          <div className="pd-kpi-grid">
-            <div className="pd-kpi-card">
-              <div className="pd-kpi-icon teal">
+        {/* ════════ MAIN GRID ════════ */}
+        <div className="pd-grid">
+          {/* ── Appointments ── */}
+          <div className="pd-card">
+            <div className="pd-card-header">
+              <h3>
                 <svg
-                  width="22"
-                  height="22"
+                  width="18"
+                  height="18"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="currentColor"
+                  stroke="var(--pd-teal)"
                   strokeWidth="2"
                 >
                   <path d="M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Z" />
                   <path d="M16 2v4M8 2v4M3 10h18" />
                 </svg>
-              </div>
-              <div className="pd-kpi-info">
-                <div className="kpi-label">Upcoming Appointments</div>
-                <div className="kpi-value">4</div>
-                <div className="kpi-sub">Next: Tomorrow 10 AM</div>
+                Upcoming Appointments
+              </h3>
+              <span className="card-link">View All →</span>
+            </div>
+            <div className="pd-card-body">
+              <div className="pd-appt-list">
+                {MOCK_APPOINTMENTS.map((appt) => {
+                  const { day, month } = formatApptDate(appt.date);
+                  return (
+                    <div key={appt.id} className="pd-appt-item">
+                      <div className="pd-appt-date">
+                        <div className="date-day">{day}</div>
+                        <div className="date-month">{month}</div>
+                      </div>
+                      <div className="pd-appt-divider" />
+                      <div className="pd-appt-info">
+                        <div className="appt-doctor">{appt.doctor}</div>
+                        <div className="appt-detail">
+                          <span>{appt.specialty}</span>
+                          <span>•</span>
+                          <span>{appt.time}</span>
+                          <span className={`pd-badge ${appt.type}`}>
+                            {appt.type === "online"
+                              ? "🎥 Online"
+                              : "🏥 In-person"}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="pd-appt-actions">
+                        <button className="btn-view">View</button>
+                        <button className="btn-reschedule">Reschedule</button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-            <div className="pd-kpi-card">
-              <div className="pd-kpi-icon blue">
+          </div>
+
+          {/* ── Prescriptions ── */}
+          <div className="pd-card">
+            <div className="pd-card-header">
+              <h3>
                 <svg
-                  width="22"
-                  height="22"
+                  width="18"
+                  height="18"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="currentColor"
+                  stroke="var(--pd-blue)"
                   strokeWidth="2"
                 >
                   <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v6m0 0H3m6 0h12M3 9v10a2 2 0 0 0 2 2h14a2 2 0 0 1-2-2V9" />
                 </svg>
-              </div>
-              <div className="pd-kpi-info">
-                <div className="kpi-label">Active Prescriptions</div>
-                <div className="kpi-value">3</div>
-                <div className="kpi-sub">1 refill needed</div>
-              </div>
+                Prescriptions
+              </h3>
+              <span className="card-link">View All →</span>
             </div>
-            <div className="pd-kpi-card">
-              <div className="pd-kpi-icon purple">
-                <svg
-                  width="22"
-                  height="22"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
+            <div className="pd-card-body">
+              <div className="pd-rx-list">
+                {MOCK_PRESCRIPTIONS.map((rx) => (
+                  <div key={rx.id} className="pd-rx-item">
+                    <div
+                      className="pd-rx-icon"
+                      style={{ background: rx.color + "20", color: rx.color }}
+                    >
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-6 7.5h9m-9 3h9m-9 3h5.25" />
+                      </svg>
+                    </div>
+                    <div className="pd-rx-info">
+                      <div className="rx-name">{rx.name}</div>
+                      <div className="rx-detail">{rx.detail}</div>
+                    </div>
+                    <div className="pd-rx-right">
+                      <div className="rx-days">
+                        <span className={`pd-badge ${rx.status}`}>
+                          {rx.status === "active"
+                            ? "Active"
+                            : rx.status === "refill-needed"
+                              ? "Refill Soon"
+                              : "Expired"}
+                        </span>
+                      </div>
+                      <div className="rx-dosage" style={{ marginTop: 4 }}>
+                        {rx.days}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="pd-kpi-info">
-                <div className="kpi-label">Assigned Doctors</div>
-                <div className="kpi-value">4</div>
-                <div className="kpi-sub">2 unread messages</div>
-              </div>
-            </div>
-            <div className="pd-kpi-card">
-              <div className="pd-kpi-icon orange">
-                <svg
-                  width="22"
-                  height="22"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                  <line x1="12" y1="9" x2="12" y2="13" />
-                  <line x1="12" y1="17" x2="12.01" y2="17" />
-                </svg>
-              </div>
-              <div className="pd-kpi-info">
-                <div className="kpi-label">Health Alerts</div>
-                <div className="kpi-value">1</div>
-                <div className="kpi-sub">Refill reminder</div>
+              {/* Adherence */}
+              <div className="pd-adherence">
+                <div className="pd-adherence-label">
+                  <span>💊 Medication Adherence</span>
+                  <span>87%</span>
+                </div>
+                <div className="pd-adherence-bar">
+                  <div className="pd-adherence-fill" style={{ width: "87%" }} />
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Quick Actions */}
-          <div className="pd-quick-actions">
-            <button className="pd-quick-btn primary">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-              Book Appointment
-            </button>
-            <button className="pd-quick-btn">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
-              Upload Report
-            </button>
-            <button className="pd-quick-btn">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M23 7l-7 5 7 5V7z" />
-                <rect x="1" y="5" width="15" height="14" rx="2" />
-              </svg>
-              Request Refill
-            </button>
-            <button
-              className="pd-quick-btn"
-              onClick={() => router.push("/patient/find-doctor")}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <circle cx="11" cy="11" r="8" />
-                <path d="M21 21l-4.35-4.35" />
-              </svg>
-              Find Doctor
-            </button>
-            <button className="pd-quick-btn" style={{ color: "var(--pd-red)" }}>
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
-              </svg>
-              Emergency
-            </button>
+          {/* ── Health Vitals ── */}
+          <div className="pd-card">
+            <div className="pd-card-header">
+              <h3>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--pd-teal)"
+                  strokeWidth="2"
+                >
+                  <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+                </svg>
+                Health Vitals
+              </h3>
+              <span className="card-link">+ Add Vitals</span>
+            </div>
+            <div className="pd-card-body">
+              <div className="pd-vitals-tabs">
+                {[
+                  { id: "bp", label: "Blood Pressure" },
+                  { id: "weight", label: "Weight" },
+                  { id: "sugar", label: "Blood Sugar" },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    className={`pd-vital-tab ${vitalTab === tab.id ? "active" : ""}`}
+                    onClick={() => setVitalTab(tab.id)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <div className="pd-chart-container">{renderMiniChart()}</div>
+              <div className="pd-vital-stats">
+                {vitalStats[vitalTab].map((s, i) => (
+                  <div key={i} className="pd-vital-stat">
+                    <div className="stat-label">{s.label}</div>
+                    <div className="stat-value">
+                      {s.value}
+                      <span className="stat-unit"> {s.unit}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
-          {/* ════════ MAIN GRID ════════ */}
-          <div className="pd-grid">
-            {/* ── Appointments ── */}
-            <div className="pd-card">
-              <div className="pd-card-header">
-                <h3>
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="var(--pd-teal)"
-                    strokeWidth="2"
-                  >
-                    <path d="M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Z" />
-                    <path d="M16 2v4M8 2v4M3 10h18" />
-                  </svg>
-                  Upcoming Appointments
-                </h3>
-                <span className="card-link">View All →</span>
-              </div>
-              <div className="pd-card-body">
-                <div className="pd-appt-list">
-                  {MOCK_APPOINTMENTS.map((appt) => {
-                    const { day, month } = formatApptDate(appt.date);
-                    return (
-                      <div key={appt.id} className="pd-appt-item">
-                        <div className="pd-appt-date">
-                          <div className="date-day">{day}</div>
-                          <div className="date-month">{month}</div>
-                        </div>
-                        <div className="pd-appt-divider" />
-                        <div className="pd-appt-info">
-                          <div className="appt-doctor">{appt.doctor}</div>
-                          <div className="appt-detail">
-                            <span>{appt.specialty}</span>
-                            <span>•</span>
-                            <span>{appt.time}</span>
-                            <span className={`pd-badge ${appt.type}`}>
-                              {appt.type === "online"
-                                ? "🎥 Online"
-                                : "🏥 In-person"}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="pd-appt-actions">
-                          <button className="btn-view">View</button>
-                          <button className="btn-reschedule">Reschedule</button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+          {/* ── Medical History ── */}
+          <div className="pd-card">
+            <div className="pd-card-header">
+              <h3>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--pd-purple)"
+                  strokeWidth="2"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 6v6l4 2" />
+                </svg>
+                Medical History
+              </h3>
+              <span className="card-link">Full History →</span>
             </div>
-
-            {/* ── Prescriptions ── */}
-            <div className="pd-card">
-              <div className="pd-card-header">
-                <h3>
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="var(--pd-blue)"
-                    strokeWidth="2"
-                  >
-                    <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v6m0 0H3m6 0h12M3 9v10a2 2 0 0 0 2 2h14a2 2 0 0 1-2-2V9" />
-                  </svg>
-                  Prescriptions
-                </h3>
-                <span className="card-link">View All →</span>
-              </div>
-              <div className="pd-card-body">
-                <div className="pd-rx-list">
-                  {MOCK_PRESCRIPTIONS.map((rx) => (
-                    <div key={rx.id} className="pd-rx-item">
-                      <div
-                        className="pd-rx-icon"
-                        style={{ background: rx.color + "20", color: rx.color }}
-                      >
-                        <svg
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        >
-                          <path d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-6 7.5h9m-9 3h9m-9 3h5.25" />
-                        </svg>
-                      </div>
-                      <div className="pd-rx-info">
-                        <div className="rx-name">{rx.name}</div>
-                        <div className="rx-detail">{rx.detail}</div>
-                      </div>
-                      <div className="pd-rx-right">
-                        <div className="rx-days">
-                          <span className={`pd-badge ${rx.status}`}>
-                            {rx.status === "active"
-                              ? "Active"
-                              : rx.status === "refill-needed"
-                                ? "Refill Soon"
-                                : "Expired"}
-                          </span>
-                        </div>
-                        <div className="rx-dosage" style={{ marginTop: 4 }}>
-                          {rx.days}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {/* Adherence */}
-                <div className="pd-adherence">
-                  <div className="pd-adherence-label">
-                    <span>💊 Medication Adherence</span>
-                    <span>87%</span>
+            <div className="pd-card-body">
+              <div className="pd-timeline">
+                {MOCK_TIMELINE.map((item) => (
+                  <div key={item.id} className="pd-timeline-item">
+                    <div className={`pd-timeline-dot ${item.type}`} />
+                    <div className="pd-timeline-date">{item.date}</div>
+                    <div className="pd-timeline-title">{item.title}</div>
+                    <div className="pd-timeline-desc">{item.desc}</div>
                   </div>
-                  <div className="pd-adherence-bar">
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Messages ── */}
+          <div className="pd-card">
+            <div className="pd-card-header">
+              <h3>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--pd-blue)"
+                  strokeWidth="2"
+                >
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+                Messages
+                <span
+                  className="pd-badge confirmed"
+                  style={{ marginLeft: 4, fontSize: "0.65rem" }}
+                >
+                  2 new
+                </span>
+              </h3>
+              <span className="card-link">Open Inbox →</span>
+            </div>
+            <div className="pd-card-body">
+              <div className="pd-msg-list">
+                {MOCK_MESSAGES.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`pd-msg-item ${msg.unread ? "unread" : ""}`}
+                  >
                     <div
-                      className="pd-adherence-fill"
-                      style={{ width: "87%" }}
-                    />
+                      className="pd-msg-avatar"
+                      style={{
+                        background: msg.unread
+                          ? "var(--pd-blue)"
+                          : "var(--pd-gray-400)",
+                      }}
+                    >
+                      {msg.initials}
+                    </div>
+                    <div className="pd-msg-content">
+                      <div className="msg-name">{msg.name}</div>
+                      <div className="msg-preview">{msg.preview}</div>
+                    </div>
+                    <div className="pd-msg-time">{msg.time}</div>
                   </div>
-                </div>
+                ))}
               </div>
             </div>
+          </div>
 
-            {/* ── Health Vitals ── */}
-            <div className="pd-card">
-              <div className="pd-card-header">
-                <h3>
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="var(--pd-teal)"
-                    strokeWidth="2"
-                  >
-                    <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-                  </svg>
-                  Health Vitals
-                </h3>
-                <span className="card-link">+ Add Vitals</span>
-              </div>
-              <div className="pd-card-body">
-                <div className="pd-vitals-tabs">
-                  {[
-                    { id: "bp", label: "Blood Pressure" },
-                    { id: "weight", label: "Weight" },
-                    { id: "sugar", label: "Blood Sugar" },
-                  ].map((tab) => (
-                    <button
-                      key={tab.id}
-                      className={`pd-vital-tab ${vitalTab === tab.id ? "active" : ""}`}
-                      onClick={() => setVitalTab(tab.id)}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="pd-chart-container">{renderMiniChart()}</div>
-                <div className="pd-vital-stats">
-                  {vitalStats[vitalTab].map((s, i) => (
-                    <div key={i} className="pd-vital-stat">
-                      <div className="stat-label">{s.label}</div>
-                      <div className="stat-value">
-                        {s.value}
-                        <span className="stat-unit"> {s.unit}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+          {/* ── Notifications ── */}
+          <div className="pd-card">
+            <div className="pd-card-header">
+              <h3>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--pd-orange)"
+                  strokeWidth="2"
+                >
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
+                Notifications
+              </h3>
+              <span className="card-link">Mark all read</span>
             </div>
-
-            {/* ── Medical History ── */}
-            <div className="pd-card">
-              <div className="pd-card-header">
-                <h3>
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="var(--pd-purple)"
-                    strokeWidth="2"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M12 6v6l4 2" />
-                  </svg>
-                  Medical History
-                </h3>
-                <span className="card-link">Full History →</span>
-              </div>
-              <div className="pd-card-body">
-                <div className="pd-timeline">
-                  {MOCK_TIMELINE.map((item) => (
-                    <div key={item.id} className="pd-timeline-item">
-                      <div className={`pd-timeline-dot ${item.type}`} />
-                      <div className="pd-timeline-date">{item.date}</div>
-                      <div className="pd-timeline-title">{item.title}</div>
-                      <div className="pd-timeline-desc">{item.desc}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* ── Messages ── */}
-            <div className="pd-card">
-              <div className="pd-card-header">
-                <h3>
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="var(--pd-blue)"
-                    strokeWidth="2"
-                  >
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
-                  Messages
-                  <span
-                    className="pd-badge confirmed"
-                    style={{ marginLeft: 4, fontSize: "0.65rem" }}
-                  >
-                    2 new
-                  </span>
-                </h3>
-                <span className="card-link">Open Inbox →</span>
-              </div>
-              <div className="pd-card-body">
-                <div className="pd-msg-list">
-                  {MOCK_MESSAGES.map((msg) => (
+            <div className="pd-card-body">
+              <div className="pd-notif-list">
+                {MOCK_NOTIFICATIONS.map((notif) => (
+                  <div key={notif.id} className="pd-notif-item">
                     <div
-                      key={msg.id}
-                      className={`pd-msg-item ${msg.unread ? "unread" : ""}`}
+                      className="pd-notif-icon"
+                      style={{ background: notif.bg }}
                     >
-                      <div
-                        className="pd-msg-avatar"
-                        style={{
-                          background: msg.unread
-                            ? "var(--pd-blue)"
-                            : "var(--pd-gray-400)",
-                        }}
-                      >
-                        {msg.initials}
-                      </div>
-                      <div className="pd-msg-content">
-                        <div className="msg-name">{msg.name}</div>
-                        <div className="msg-preview">{msg.preview}</div>
-                      </div>
-                      <div className="pd-msg-time">{msg.time}</div>
+                      {notif.icon}
                     </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* ── Notifications ── */}
-            <div className="pd-card">
-              <div className="pd-card-header">
-                <h3>
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="var(--pd-orange)"
-                    strokeWidth="2"
-                  >
-                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                  </svg>
-                  Notifications
-                </h3>
-                <span className="card-link">Mark all read</span>
-              </div>
-              <div className="pd-card-body">
-                <div className="pd-notif-list">
-                  {MOCK_NOTIFICATIONS.map((notif) => (
-                    <div key={notif.id} className="pd-notif-item">
-                      <div
-                        className="pd-notif-icon"
-                        style={{ background: notif.bg }}
-                      >
-                        {notif.icon}
-                      </div>
-                      <div className="pd-notif-text">
-                        <div className="notif-title">{notif.title}</div>
-                        <div className="notif-time">{notif.time}</div>
-                      </div>
+                    <div className="pd-notif-text">
+                      <div className="notif-title">{notif.title}</div>
+                      <div className="notif-time">{notif.time}</div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
 }

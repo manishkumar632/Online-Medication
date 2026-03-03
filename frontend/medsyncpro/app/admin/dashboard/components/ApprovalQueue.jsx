@@ -13,7 +13,7 @@ import {
   fetchPendingUsersAction,
   approveUserAction,
   rejectUserAction,
-} from "@/action/adminAction";
+} from "@/actions/adminAction";
 
 export default function ApprovalQueue() {
   const [approvals, setApprovals] = useState([]);
