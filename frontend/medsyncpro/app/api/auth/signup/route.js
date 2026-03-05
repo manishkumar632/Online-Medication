@@ -9,7 +9,7 @@ export async function POST(req) {
     const confirmPassword = body?.confirmPassword;
     const name = body?.name;
     const role = body?.role;
-    const termsAccepted = body?.termsAccepted;
+    const termsAccepted = body?.termsAccepted === 'on';
 
     // 🔹 Log incoming request (safe logging)
     console.log("🔐 Signup Request:", {
@@ -58,7 +58,7 @@ export async function POST(req) {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ email, password, role, name, termsAccepted }),
+      body: JSON.stringify({ email, password, confirmPassword, role, name, termsAccepted }),
     });
 
     const clonedRes = backendRes.clone();

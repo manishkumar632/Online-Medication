@@ -17,20 +17,6 @@ export class ApiError extends Error {
 
 // ─── Client ───────────────────────────────────────────────────────────────────
 
-/**
- * Server-side fetch wrapper.
- * Forwards the `access_token` HttpOnly cookie to Spring Boot.
- * Throws `ApiError` for non-2xx responses.
- *
- * Content-Type handling:
- *   - JSON body (string / object)  → sets "application/json" automatically
- *   - FormData body                → does NOT set Content-Type, letting the
- *                                    runtime attach the correct multipart
- *                                    boundary automatically
- *
- * @param {string}      endpoint  e.g. "/auth/me"
- * @param {RequestInit} [options]
- */
 export async function serverApiClient(endpoint, options) {
   const headers = new Headers(options?.headers);
   headers.set("Accept", "application/json");

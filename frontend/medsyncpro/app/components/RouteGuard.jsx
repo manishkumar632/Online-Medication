@@ -17,13 +17,13 @@ import { useAuth, getRedirectPath } from "../context/AuthContext";
  * - Shows nothing while checking (prevents flash of protected content)
  */
 export default function RouteGuard({ children, allowedRoles = [] }) {
-    const { user, loading, isLoggedIn } = useAuth();
+    const { user, ready, isLoggedIn } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
     const [authorized, setAuthorized] = useState(false);
 
     useEffect(() => {
-        if (loading) return; // Wait for auth state to load from localStorage
+        if (!ready) return; // Wait for auth state to hydrate
 
         if (!isLoggedIn || !user) {
             // Not logged in → redirect to login
@@ -40,10 +40,10 @@ export default function RouteGuard({ children, allowedRoles = [] }) {
 
         // All checks passed
         setAuthorized(true);
-    }, [loading, isLoggedIn, user, allowedRoles, router, pathname]);
+    }, [ready, isLoggedIn, user, allowedRoles, router, pathname]);
 
     // Show nothing while loading/checking (prevents flash)
-    if (loading || !authorized) {
+    if (!ready || !authorized) {
         return (
             <div style={{
                 display: "flex",

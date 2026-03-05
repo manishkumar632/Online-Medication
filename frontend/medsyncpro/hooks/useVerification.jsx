@@ -10,7 +10,7 @@ import {
 /**
  * useVerification
  *
- * Manages professional verification state for doctors, pharmacists, and agents.
+ * Manages professional verification state for doctors, pharmacists, agents, and patients.
  *
  * Data flow:
  *   • Status / submit / batch-upload  →  server actions (verificationAction.js)
