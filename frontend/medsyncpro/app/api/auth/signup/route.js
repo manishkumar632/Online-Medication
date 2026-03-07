@@ -17,8 +17,8 @@ export async function POST(req) {
       name,
       role,
       termsAccepted,
-      passwordLength: password,
-      confirmPasswordLength: confirmPassword,
+      password: password,
+      confirmPassword: confirmPassword,
     });
 
     if (!termsAccepted) {

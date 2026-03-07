@@ -1,7 +1,12 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { API_BASE_URL } from "@/lib/config";
+import {
+    fetchDoctorAppointments,
+    updateAppointmentStatus,
+    saveAppointmentNotes,
+    saveAppointmentPrescription,
+} from "@/actions/appointmentAction";
 import RouteGuard from "../../components/RouteGuard";
 import {
     Search, Plus, X, Clock, Calendar, CalendarDays,
@@ -368,7 +373,7 @@ function PrescriptionModal({ appt, onClose, onSave }) {
 
     const handleSave = async () => {
         setSaving(true);
-        await onSave({ diagnosis, notes, items: items.filter(i => i.medicineName.trim()) });
+        await onSave({ diagnosis, notes, medicines: items.filter(i => i.medicineName.trim()) });
         setSaving(false);
     };
 
@@ -462,10 +467,9 @@ function DoctorAppointmentsPage() {
     const fetchAppointments = async () => {
         setLoading(true);
         try {
-            const res = await fetch(`${API_BASE_URL}/api/doctor/appointments?page=0&size=50`, { credentials: "include" });
-            const data = await res.json();
-            if (data.success) {
-                const pageData = data.data;
+            const result = await fetchDoctorAppointments(0, 50);
+            if (result.success) {
+                const pageData = result.data;
                 setAppointments(pageData?.content || pageData || []);
             }
         } catch (err) {
@@ -481,29 +485,28 @@ function DoctorAppointmentsPage() {
 
     const handleAction = async (action, appt) => {
         try {
-            let url, method = "PATCH", body = null;
+            let actionName, body = null;
             switch (action) {
                 case "approve":
-                    url = `${API_BASE_URL}/api/doctor/appointments/${appt.id}/approve`;
+                    actionName = "approve";
                     break;
                 case "reject":
                     const reason = prompt("Reason for rejection:");
                     if (reason === null) return;
-                    url = `${API_BASE_URL}/api/doctor/appointments/${appt.id}/reject`;
-                    body = JSON.stringify({ reason });
+                    actionName = "reject";
+                    body = { reason };
                     break;
                 case "start":
-                    // just mark as confirmed → in_progress is manual via "complete" in the drawer
-                    url = `${API_BASE_URL}/api/doctor/appointments/${appt.id}/approve`;
+                    actionName = "approve";
                     break;
                 case "complete":
-                    url = `${API_BASE_URL}/api/doctor/appointments/${appt.id}/complete`;
+                    actionName = "complete";
                     break;
                 case "cancel":
                     const cancelReason = prompt("Reason for cancellation:");
                     if (cancelReason === null) return;
-                    url = `${API_BASE_URL}/api/doctor/appointments/${appt.id}/cancel`;
-                    body = JSON.stringify({ reason: cancelReason });
+                    actionName = "cancel";
+                    body = { reason: cancelReason };
                     break;
                 case "prescribe":
                     setPrescribeAppt(appt);
@@ -513,18 +516,13 @@ function DoctorAppointmentsPage() {
                     return;
                 default: return;
             }
-            const res = await fetch(url, {
-                method, credentials: "include",
-                headers: { "Content-Type": "application/json" },
-                body,
-            });
-            const data = await res.json();
-            if (data.success) {
+            const result = await updateAppointmentStatus(appt.id, actionName, body);
+            if (result.success) {
                 showToast("success", `Appointment ${action}d successfully`);
                 fetchAppointments();
                 setSelectedAppt(null);
             } else {
-                showToast("error", data.message || "Action failed");
+                showToast("error", result.message || "Action failed");
             }
         } catch (err) {
             showToast("error", "Network error");
@@ -533,19 +531,13 @@ function DoctorAppointmentsPage() {
 
     const handleSavePrescription = async (prescriptionData) => {
         try {
-            const res = await fetch(`${API_BASE_URL}/api/doctor/appointments/${prescribeAppt.id}/prescription`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify(prescriptionData),
-            });
-            const data = await res.json();
-            if (data.success) {
+            const result = await saveAppointmentPrescription(prescribeAppt.id, prescriptionData);
+            if (result.success) {
                 showToast("success", "Prescription created");
                 fetchAppointments();
                 setPrescribeAppt(null);
             } else {
-                showToast("error", data.message || "Failed");
+                showToast("error", result.message || "Failed");
             }
         } catch (err) {
             showToast("error", "Network error");
@@ -554,19 +546,13 @@ function DoctorAppointmentsPage() {
 
     const handleSaveNotes = async (notesData) => {
         try {
-            const res = await fetch(`${API_BASE_URL}/api/doctor/appointments/${notesAppt.id}/notes`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify(notesData),
-            });
-            const data = await res.json();
-            if (data.success) {
+            const result = await saveAppointmentNotes(notesAppt.id, notesData);
+            if (result.success) {
                 showToast("success", "Notes saved");
                 fetchAppointments();
                 setNotesAppt(null);
             } else {
-                showToast("error", data.message || "Failed");
+                showToast("error", result.message || "Failed");
             }
         } catch (err) {
             showToast("error", "Network error");

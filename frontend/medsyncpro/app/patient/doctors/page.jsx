@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../context/AuthContext";
 import RouteGuard from "../../components/RouteGuard";
-import { config } from "@/lib/config";
+import { searchDoctorsAction } from "@/actions/Finddoctoraction";
 import {
     Search, X, MapPin, Clock, Star, Stethoscope, Video, Building2,
     ChevronRight, Filter, Users
@@ -41,24 +41,15 @@ function DoctorDiscovery() {
     const fetchDoctors = async () => {
         setLoading(true);
         try {
-            const params = new URLSearchParams();
-            if (specialty !== "All") params.set("q", specialty);
+            let query = "";
+            if (specialty !== "All") query = specialty;
             if (search.trim()) {
-                // Combine specialty and search term if both exist
-                const combined = specialty !== "All" ? `${specialty} ${search.trim()}` : search.trim();
-                params.set("q", combined);
+                query = specialty !== "All" ? `${specialty} ${search.trim()}` : search.trim();
             }
 
-            const endpoint = `${config.apiUrl}/doctors/search?${params}`;
-            console.log(`[fetchDoctors] Client REQUEST to: ${endpoint}`);
-
-            const res = await fetch(endpoint, { credentials: "include" });
-            const data = await res.json();
-
-            console.log(`[fetchDoctors] Client RESPONSE:`, data);
-            if (data.success) {
-                // Handle paginated structure from backend
-                setDoctors(data.data?.content || []);
+            const result = await searchDoctorsAction({ query: query || undefined });
+            if (result.success) {
+                setDoctors(result.data?.content || []);
             }
         } catch (err) {
             console.error("[fetchDoctors] ERROR:", err);

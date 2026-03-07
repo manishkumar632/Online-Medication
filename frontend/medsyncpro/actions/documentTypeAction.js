@@ -15,11 +15,11 @@ import { ApiError } from "@/lib/api-client";
 
 export async function fetchDocumentTypesAction(modelType) {
   try {
-    const body = await serverApiClient(
+    const response = await serverApiClient(
       `/admin/document-types/${modelType.toUpperCase()}`,
     );
-    if (body.success) return { success: true, data: body.data ?? [] };
-    return { success: false, data: [], message: body.message ?? "Failed to fetch document types." };
+    if (response.data.success) return { success: true, data: response.data.data ?? [] };
+    return { success: false, data: [], message: response.data.message ?? "Failed to fetch document types." };
   } catch (error) {
     const message =
       error instanceof ApiError
@@ -31,14 +31,14 @@ export async function fetchDocumentTypesAction(modelType) {
 
 // Fetch all the document types
 export async function fetchAllDocumentTypesAction() {
+  'use server';
   try {
-    const body = await serverApiClient(`/get-all-document-types`);
-    console.log(body);
-    if (body.success) return { success: true, data: body.data ?? [] };
+    const response = await serverApiClient(`/get-all-document-types`);
+    if (response.data.success) return { success: true, data: response.data.data ?? [] };
     return {
       success: false,
       data: [],
-      message: body.message ?? "Failed to fetch document types.",
+      message: response.data.message ?? "Failed to fetch document types.",
     };
   } catch (error) {
     const message =
@@ -66,11 +66,10 @@ export async function fetchAllDocumentTypesAndFilterActivated(role) {
     console.log("📍 role : ", role);
 
     const normalizedRole = role.toUpperCase();
-    const body = await serverApiClient(`/get-all-document-types`);
-    console.log(body);
+    const response = await serverApiClient(`/get-all-document-types`);
 
-    if (body.success) {
-      const filtered = (body.data ?? [])
+    if (response.data.success) {
+      const filtered = (response.data.data ?? [])
         .filter((doc) => doc.active === true && doc.role === normalizedRole)
         .sort((a, b) => a.displayOrder - b.displayOrder);
 
@@ -80,7 +79,7 @@ export async function fetchAllDocumentTypesAndFilterActivated(role) {
     return {
       success: false,
       data: [],
-      message: body.message ?? "Failed to fetch document types.",
+      message: response.data.message ?? "Failed to fetch document types.",
     };
   } catch (error) {
     const message =
@@ -126,7 +125,7 @@ export async function createDocumentType(prevState, formData) {
     if (name.trim().length > 100) {
       return { success: false, message: "Name must be at most 100 characters." };
     }
-    const body = await serverApiClient("/admin/add-new-document-type", {
+    const response = await serverApiClient("/admin/add-new-document-type", {
       method: "POST",
       body: JSON.stringify({
         name: name.trim(),
@@ -138,10 +137,10 @@ export async function createDocumentType(prevState, formData) {
         displayOrder,
       }),
     });
-    if (body.success) return { success: true, data: body.data };
+    if (response.data.success) return { success: true, data: response.data.data };
     return {
       success: false,
-      message: body.message ?? "Failed to create document type.",
+      message: response.data.message ?? "Failed to create document type.",
     };
   } catch (error) {
     const message =
@@ -158,14 +157,14 @@ export async function removeDocumentType(prevState, formData) {
   'use server'
   try {
     const mappingId = formData.get("deleteDocTypeBtn");
-    const body = await serverApiClient(
+    const response = await serverApiClient(
       `/admin/document-types/mapping/${mappingId}`,
       { method: "DELETE" },
     );
-    if (body.success) return { success: true };
+    if (response.data.success) return { success: true };
     return {
       success: false,
-      message: body.message ?? "Failed to remove document type.",
+      message: response.data.message ?? "Failed to remove document type.",
     };
   } catch (error) {
     const message =
@@ -182,14 +181,14 @@ export async function toggleRequired(prevState, formData) {
   'use server'
   try {
     const mappingId = formData.get("mappingId");
-    const body = await serverApiClient(
+    const response = await serverApiClient(
       `/admin/document-types/mapping/${mappingId}/toggle-required`,
       { method: "PATCH" },
     );
-    if (body.success) return { success: true, data: body.data };
+    if (response.data.success) return { success: true, data: response.data.data };
     return {
       success: false,
-      message: body.message ?? "Failed to toggle required status.",
+      message: response.data.message ?? "Failed to toggle required status.",
     };
   } catch (error) {
     const message =
@@ -206,14 +205,14 @@ export async function toggleActive(prevState, formData) {
   'use server'
   try {
     const mappingId = formData.get("mappingId");
-    const body = await serverApiClient(
+    const response = await serverApiClient(
       `/admin/document-types/mapping/${mappingId}/toggle-active`,
       { method: "PATCH" },
     );
-    if (body.success) return { success: true, data: body.data };
+    if (response.data.success) return { success: true, data: response.data.data };
     return {
       success: false,
-      message: body.message ?? "Failed to toggle active status.",
+      message: response.data.message ?? "Failed to toggle active status.",
     };
   } catch (error) {
     const message =
@@ -238,17 +237,17 @@ export async function renameDocumentType(prevState, formData) {
       return { success: false, message: "Name must be at most 100 characters." };
     }
 
-    const body = await serverApiClient(
+    const response = await serverApiClient(
       `/admin/document-types/mapping/${mappingId}/rename`,
       {
         method: "PATCH",
         body: JSON.stringify({ name: newName.trim() }),
       },
     );
-    if (body.success) return { success: true, data: body.data };
+    if (response.data.success) return { success: true, data: response.data.data };
     return {
       success: false,
-      message: body.message ?? "Failed to rename document type.",
+      message: response.data.message ?? "Failed to rename document type.",
     };
   } catch (error) {
     const message =
@@ -264,14 +263,14 @@ export async function renameDocumentType(prevState, formData) {
 export async function toggleRequiredAction(mappingId) {
   'use server'
   try {
-    const body = await serverApiClient(
+    const response = await serverApiClient(
       `/admin/document-types/mapping/${mappingId}/toggle-required`,
       { method: "PATCH" },
     );
-    if (body.success) return { success: true, data: body.data };
+    if (response.data.success) return { success: true, data: response.data.data };
     return {
       success: false,
-      message: body.message ?? "Failed to toggle required status.",
+      message: response.data.message ?? "Failed to toggle required status.",
     };
   } catch (error) {
     const message =
@@ -285,14 +284,14 @@ export async function toggleRequiredAction(mappingId) {
 export async function toggleActiveAction(mappingId) {
   'use server'
   try {
-    const body = await serverApiClient(
+    const response = await serverApiClient(
       `/admin/document-types/mapping/${mappingId}/toggle-active`,
       { method: "PATCH" },
     );
-    if (body.success) return { success: true, data: body.data };
+    if (response.data.success) return { success: true, data: response.data.data };
     return {
       success: false,
-      message: body.message ?? "Failed to toggle active status.",
+      message: response.data.message ?? "Failed to toggle active status.",
     };
   } catch (error) {
     const message =
@@ -306,14 +305,14 @@ export async function toggleActiveAction(mappingId) {
 export async function removeDocumentTypeMappingAction(mappingId) {
   'use server'
   try {
-    const body = await serverApiClient(
+    const response = await serverApiClient(
       `/admin/document-types/mapping/${mappingId}`,
       { method: "DELETE" },
     );
-    if (body.success) return { success: true };
+    if (response.data.success) return { success: true };
     return {
       success: false,
-      message: body.message ?? "Failed to remove document type.",
+      message: response.data.message ?? "Failed to remove document type.",
     };
   } catch (error) {
     const message =
@@ -329,14 +328,14 @@ export async function removeDocumentTypeMappingAction(mappingId) {
 export async function deleteDocumentTypeAction(documentTypeId) {
   'use server'
   try {
-    const body = await serverApiClient(
+    const response = await serverApiClient(
       `/admin/document-types/${documentTypeId}`,
       { method: "DELETE" },
     );
-    if (body.success) return { success: true };
+    if (response.data.success) return { success: true };
     return {
       success: false,
-      message: body.message ?? "Failed to delete document type.",
+      message: response.data.message ?? "Failed to delete document type.",
     };
   } catch (error) {
     const message =

@@ -1,16 +1,27 @@
 "use client";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useActionState } from "react";
 import {
     User, Briefcase, Building2, CalendarClock, MessageSquareText, Bell,
     FileCheck, ShieldCheck, Lock, UserX, Camera, X, Plus, Trash2, Upload,
     Save, RotateCcw, Eye, EyeOff, LogOut, Download, AlertTriangle,
     CheckCircle2, Clock, Globe, Phone, Mail, MapPin, Languages, Award,
-    Stethoscope, IndianRupee
+    Stethoscope, IndianRupee, Loader2, RefreshCw, BadgeCheck, XCircle, FileUp
 } from "lucide-react";
 import { useAuth } from "@/app/context/AuthContext";
 import { config } from "@/lib/config";
 import { toast } from "sonner";
+import {
+    fetchDoctorDocumentTypesAction,
+    fetchDoctorVerificationStatusAction,
+    requestUploadSignatureAction,
+    saveUploadedDocumentAction,
+    submitDoctorVerificationAction,
+} from "@/actions/doctorVerificationAction";
 import "../doctor-settings.css";
+
+import { fetchAllDocumentTypesAction } from "@/actions/documentTypeAction";
+
+import { fetchDoctorProfileData } from "@/actions/doctorAction";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -72,53 +83,108 @@ function TagInput({ tags, onChange, placeholder }) {
 // ────────────────────────── PROFILE ──────────────────────────
 function ProfileSection({ data, onChange }) {
     const [photo, setPhoto] = useState(null);
+    const { doctorProfileData } = useAuth();
     return (
-        <div className="ds-section" id="profile">
-            <h2 className="ds-section-title"><User size={20} /> Profile</h2>
-            <p className="ds-section-desc">Manage your personal information</p>
+      <div className="ds-section" id="profile">
+        <h2 className="ds-section-title">
+          <User size={20} /> Profile
+        </h2>
+        <p className="ds-section-desc">Manage your personal information</p>
 
-            <div className="ds-photo-upload">
-                <div className="ds-avatar">
-                    {photo ? <img src={URL.createObjectURL(photo)} alt="avatar" />
-                        : data.profileImageUrl ? <img src={data.profileImageUrl} alt="avatar" />
-                            : <User size={36} />}
-                    <label className="ds-avatar-edit"><Camera size={14} /><input type="file" accept="image/*" hidden onChange={(e) => { setPhoto(e.target.files[0]); onChange("_profileImage", e.target.files[0]); }} /></label>
-                </div>
-                <div className="ds-photo-info">
-                    <span className="ds-photo-label">Profile Photo</span>
-                    <span className="ds-photo-hint">JPG, PNG under 2 MB. Recommended 256×256px.</span>
-                </div>
-            </div>
-
-            <div className="ds-form-grid">
-                <div className="ds-field">
-                    <label>Full Name</label>
-                    <input type="text" value={data.name || ""} onChange={(e) => onChange("name", e.target.value)} placeholder="Dr. John Smith" />
-                </div>
-                <div className="ds-field">
-                    <label>Email <span className="ds-readonly-badge">Read-only</span></label>
-                    <input type="email" value={data.email || ""} readOnly className="ds-readonly" />
-                </div>
-                <div className="ds-field">
-                    <label>Phone Number</label>
-                    <div className="ds-input-icon"><Phone size={15} /><input type="tel" value={data.phone || ""} onChange={(e) => onChange("phone", e.target.value)} placeholder="+91 98765 43210" /></div>
-                </div>
-                <div className="ds-field">
-                    <label>Gender</label>
-                    <select value={data.gender || ""} onChange={(e) => onChange("gender", e.target.value)}>
-                        <option value="">Select</option><option value="MALE">Male</option><option value="FEMALE">Female</option><option value="OTHER">Other</option>
-                    </select>
-                </div>
-                <div className="ds-field">
-                    <label>Date of Birth</label>
-                    <input type="date" value={data.dob || ""} onChange={(e) => onChange("dob", e.target.value)} />
-                </div>
-            </div>
-            <div className="ds-field ds-full">
-                <label>Bio / About</label>
-                <textarea rows={4} value={data.bio || ""} onChange={(e) => onChange("bio", e.target.value)} placeholder="Write a short bio about yourself, your experience, and your approach to patient care..." />
-            </div>
+        <div className="ds-photo-upload">
+          <div className="ds-avatar">
+            {photo ? (
+              <img src={URL.createObjectURL(photo)} alt="avatar" />
+            ) : data.profileImageUrl ? (
+              <img src={data.profileImageUrl} alt="avatar" />
+            ) : (
+              <User size={36} />
+            )}
+            <label className="ds-avatar-edit">
+              <Camera size={14} />
+              <input
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => {
+                  setPhoto(e.target.files[0]);
+                  onChange("_profileImage", e.target.files[0]);
+                }}
+              />
+            </label>
+          </div>
+          <div className="ds-photo-info">
+            <span className="ds-photo-label">Profile Photo</span>
+            <span className="ds-photo-hint">
+              JPG, PNG under 2 MB. Recommended 256×256px.
+            </span>
+          </div>
         </div>
+
+        <div className="ds-form-grid">
+          <div className="ds-field">
+            <label>Full Name</label>
+            <input
+              type="text"
+              value={doctorProfileData?.name || ""}
+              onChange={(e) => onChange("name", e.target.value)}
+              placeholder="Dr. John Smith"
+            />
+          </div>
+          <div className="ds-field">
+            <label>
+              Email <span className="ds-readonly-badge">Read-only</span>
+            </label>
+            <input
+              type="email"
+              value={doctorProfileData?.email || ""}
+              readOnly
+              className="ds-readonly"
+            />
+          </div>
+          <div className="ds-field">
+            <label>Phone Number</label>
+            <div className="ds-input-icon">
+              <Phone size={15} />
+              <input
+                type="tel"
+                value={doctorProfileData?.phone || ""}
+                onChange={(e) => onChange("phone", e.target.value)}
+                placeholder="+91 98765 43210"
+              />
+            </div>
+          </div>
+          <div className="ds-field">
+            <label>Gender</label>
+            <select
+              value={data.gender || ""}
+              onChange={(e) => onChange("gender", e.target.value)}
+            >
+              <option value="">Select</option>
+              <option value="MALE">Male</option>
+              <option value="FEMALE">Female</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </div>
+          <div className="ds-field">
+            <label>Date of Birth</label>
+            <input
+              type="date"
+              value={data.dob || ""}
+              onChange={(e) => onChange("dob", e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="ds-field ds-full">
+          <label>Bio / About</label>
+          <textarea
+            rows={4}
+            value={data.bio || ""}
+            onChange={(e) => onChange("bio", e.target.value)}
+            placeholder="Write a short bio about yourself, your experience, and your approach to patient care..."
+          />
+        </div>
+      </div>
     );
 }
 
@@ -357,61 +423,331 @@ function NotificationsSection({ data, onChange }) {
     );
 }
 
-// ────────────────────────── DOCUMENTS ──────────────────────────
-function DocumentsSection({ documents }) {
-    const statusMap = {
-        VERIFIED: { label: "Verified", cls: "verified", icon: CheckCircle2 },
-        PENDING: { label: "Pending Review", cls: "pending", icon: Clock },
-        NOT_UPLOADED: { label: "Not Uploaded", cls: "missing", icon: Upload },
+
+const ALLOWED_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/jpg"];
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+const DOC_STATUS_MAP = {
+    VERIFIED:           { label: "Verified",       cls: "verified", icon: BadgeCheck   },
+    UPLOADED:           { label: "Uploaded",        cls: "pending",  icon: CheckCircle2 },
+    PENDING:            { label: "Pending Review",  cls: "pending",  icon: Clock        },
+    DOCUMENT_SUBMITTED: { label: "Under Review",    cls: "pending",  icon: Clock        },
+    REJECTED:           { label: "Rejected",        cls: "rejected", icon: XCircle      },
+    NOT_UPLOADED:       { label: "Not Uploaded",    cls: "missing",  icon: FileUp       },
+};
+
+function VerifyDocumentsSection() {
+    const [docTypes, setDocTypes]   = useState([]);
+    const [verStatus, setVerStatus] = useState(null);
+    const [docItems, setDocItems]   = useState([]);
+    const [loading, setLoading]     = useState(true);
+    const [uploading, setUploading] = useState({});
+
+    const [submitState, submitAction, submitPending] = useActionState(
+        submitDoctorVerificationAction,
+        { success: false },
+    );
+
+    // ── Load data ────────────────────────────────────────────────────────────
+    const loadData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const [typesRes, statusRes] = await Promise.all([
+                fetchDoctorDocumentTypesAction(),
+                fetchDoctorVerificationStatusAction(),
+            ]);
+
+            if (typesRes.success) setDocTypes(typesRes.data);
+
+            if (statusRes.success && statusRes.data) {
+                setVerStatus(statusRes.data);
+
+                const items = statusRes.data.requiredDocuments;
+
+                if (Array.isArray(items) && items.length > 0) {
+                    setDocItems(items);
+                } else if (typesRes.success && typesRes.data.length > 0) {
+                    // Status returned empty list — build from doc types
+                    setDocItems(buildNotUploadedItems(typesRes.data));
+                }
+            } else if (typesRes.success && typesRes.data.length > 0) {
+                // Status endpoint failed — build placeholder list from doc types.
+                // We do NOT wipe docItems if they already exist (preserves upload state).
+                setDocItems(prev =>
+                    prev.length > 0
+                        ? prev  // ✅ keep existing state if we already have items
+                        : buildNotUploadedItems(typesRes.data)
+                );
+            }
+        } catch (e) {
+            console.error("Failed to load verification data", e);
+        }
+        setLoading(false);
+    }, []);
+
+    // Helper — builds a NOT_UPLOADED item list from raw document types
+    function buildNotUploadedItems(types) {
+        return types.map((dt) => ({
+            documentTypeId: dt.id,
+            label:          dt.name,
+            description:    dt.description,
+            required:       dt.required,
+            status:         "NOT_UPLOADED",
+            uploaded:       false,
+            fileName:       null,
+        }));
+    }
+
+    useEffect(() => { loadData(); }, [loadData]);
+
+    useEffect(() => {
+        if (submitState.success) {
+            toast.success("Verification submitted! Our team will review your documents.");
+            loadData();
+        } else if (submitState.message && !submitState.success &&
+                   submitState.message !== "Failed to submit verification.") {
+            toast.error(submitState.message);
+        }
+    }, [submitState]);
+
+    // ── Upload handler ───────────────────────────────────────────────────────
+    const handleUpload = async (docTypeId, file) => {
+        if (!ALLOWED_TYPES.includes(file.type)) {
+            toast.error("Invalid file type. Only PDF, JPG, and PNG are allowed.");
+            return;
+        }
+        if (file.size > MAX_FILE_SIZE) {
+            toast.error("File too large. Maximum size is 10 MB.");
+            return;
+        }
+
+        setUploading((prev) => ({ ...prev, [docTypeId]: true }));
+        try {
+            // Step 1 — Get Cloudinary signature
+            const sigForm = new FormData();
+            sigForm.set("documentTypeId", docTypeId);
+            const sigResult = await requestUploadSignatureAction({}, sigForm);
+
+            if (!sigResult.success) {
+                toast.error(sigResult.message || "Failed to get upload signature.");
+                return;
+            }
+
+            const { signature, timestamp, apiKey, cloudName, folder } = sigResult.data;
+
+            // Step 2 — Upload directly to Cloudinary
+            const cloudForm = new FormData();
+            cloudForm.append("file",      file);
+            cloudForm.append("signature", signature);
+            cloudForm.append("timestamp", String(timestamp));
+            cloudForm.append("api_key",   apiKey);
+            cloudForm.append("folder",    folder);
+
+            const cloudRes = await fetch(
+                `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`,
+                { method: "POST", body: cloudForm },
+            );
+
+            if (!cloudRes.ok) {
+                const errData = await cloudRes.json().catch(() => ({}));
+                throw new Error(errData.error?.message || "Cloudinary upload failed");
+            }
+
+            const cloudData = await cloudRes.json();
+
+            // Step 3 — Save metadata to backend
+            const saveForm = new FormData();
+            saveForm.set("documentTypeId",   docTypeId);
+            saveForm.set("publicId",         cloudData.public_id);
+            saveForm.set("secureUrl",        cloudData.secure_url);
+            saveForm.set("resourceType",     cloudData.resource_type || "image");
+            saveForm.set("format",           cloudData.format        || "");
+            saveForm.set("originalFilename", cloudData.original_filename || file.name);
+            saveForm.set("bytes",            String(cloudData.bytes || file.size));
+
+            const saveResult = await saveUploadedDocumentAction({}, saveForm);
+
+            if (saveResult.success) {
+                toast.success("Document uploaded successfully!");
+
+                // ✅ OPTIMISTIC UPDATE — update this specific card immediately
+                // using the data returned from the save endpoint.
+                // This works even when /verification-status returns 500.
+                setDocItems(prev =>
+                    prev.map(item =>
+                        item.documentTypeId === docTypeId
+                            ? {
+                                ...item,
+                                ...saveResult.data,  // status, fileUrl, fileName, fileSize, uploaded
+                                uploaded: true,
+                                status: saveResult.data?.status || "UPLOADED",
+                              }
+                            : item
+                    )
+                );
+
+                // Background refresh — wrapped in try/catch so a 500 on
+                // verification-status does NOT revert the optimistic update.
+                // Once the backend UUID bug is fixed, this will update verStatus too.
+                loadData().catch(() => {});
+            } else {
+                toast.error(saveResult.message || "Failed to save document.");
+            }
+        } catch (error) {
+            console.error("Upload error:", error);
+            toast.error(error.message || "An error occurred during upload.");
+        } finally {
+            setUploading((prev) => ({ ...prev, [docTypeId]: false }));
+        }
     };
 
-    const docTypes = [
-        { type: "LICENSE", name: "Medical License" },
-        { type: "DEGREE", name: "Degree Certificate" },
-        { type: "ID_PROOF", name: "Government ID" },
-    ];
+    // ── Derived state ────────────────────────────────────────────────────────
+    const overallStatus = verStatus?.status || "UNVERIFIED";
 
+    // Locked = doctor submitted and is awaiting admin action (or already verified)
+    // Re-upload and re-submit are only allowed when UNVERIFIED or REJECTED
+    const isLocked = ["DOCUMENT_SUBMITTED", "UNDER_REVIEW", "VERIFIED"].includes(overallStatus);
+
+    const allRequiredUploaded = docItems.filter(d => d.required).every(d => d.uploaded);
+    const canSubmit =
+        !isLocked &&
+        allRequiredUploaded &&
+        ["UNVERIFIED", "REJECTED"].includes(overallStatus) &&
+        docItems.some(d => d.uploaded);
+
+    // ── Loading ──────────────────────────────────────────────────────────────
+    if (loading) {
+        return (
+            <div className="ds-section" id="verify-document">
+                <h2 className="ds-section-title"><ShieldCheck size={20} /> Verify Documents</h2>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#94a3b8", padding: "24px 0" }}>
+                    <Loader2 size={18} className="ds-spin" /> Loading verification data...
+                </div>
+            </div>
+        );
+    }
+
+    // ── Render ───────────────────────────────────────────────────────────────
     return (
-        <div className="ds-section" id="documents">
-            <h2 className="ds-section-title"><FileCheck size={20} /> Documents & Verification</h2>
-            <p className="ds-section-desc">Upload your credentials for verification</p>
+        <div className="ds-section" id="verify-document">
+            <h2 className="ds-section-title"><ShieldCheck size={20} /> Verify Documents</h2>
+            <p className="ds-section-desc">Upload your professional documents for verification</p>
+
+            {overallStatus !== "UNVERIFIED" && (
+                <div className={`ds-verification-banner ds-vb-${overallStatus.toLowerCase().replace("_", "-")}`}>
+                    {overallStatus === "VERIFIED"           && <><BadgeCheck size={18} /> Your documents have been verified.</>}
+                    {overallStatus === "DOCUMENT_SUBMITTED" && <><Clock size={18} /> Your documents are under review.</>}
+                    {overallStatus === "UNDER_REVIEW"       && <><Clock size={18} /> Your documents are being reviewed.</>}
+                    {overallStatus === "REJECTED"           && (
+                        <><XCircle size={18} /> Verification rejected.{" "}
+                          {verStatus?.verificationNotes && `Reason: ${verStatus.verificationNotes}`}{" "}
+                          Please re-upload and resubmit.</>
+                    )}
+                </div>
+            )}
 
             <div className="ds-doc-list">
-                {docTypes.map((docDef) => {
-                    const doc = documents.find(d => d.type === docDef.type);
-                    const status = doc ? "VERIFIED" : "NOT_UPLOADED";
-                    const st = statusMap[status] || statusMap.NOT_UPLOADED;
-                    const StIcon = st.icon;
-                    return (
-                        <div key={docDef.type} className="ds-doc-card">
-                            <div className="ds-doc-info">
-                                <span className="ds-doc-name">{docDef.name}</span>
-                                {doc && <span className="ds-doc-file">{docDef.type.toLowerCase()}</span>}
+                {docItems.length === 0 ? (
+                    <div style={{ color: "#94a3b8", padding: "16px 0" }}>
+                        No document types configured yet. Please check back later.
+                    </div>
+                ) : (
+                    docItems.map((item) => {
+                        const st          = DOC_STATUS_MAP[item.status] || DOC_STATUS_MAP.NOT_UPLOADED;
+                        const StIcon      = st.icon;
+                        const isUploading = uploading[item.documentTypeId];
+                        // Allow upload only when:
+                        //  • overall status lets the doctor act (not locked), AND
+                        //  • the individual document slot needs a file
+                        const canReupload = !isLocked && ["NOT_UPLOADED", "REJECTED", "UPLOADED"].includes(item.status);
+
+                        return (
+                            <div key={item.documentTypeId} className="ds-doc-card">
+                                <div className="ds-doc-info">
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                        <span className="ds-doc-name">{item.label}</span>
+                                        {item.required
+                                            ? <span className="ds-badge ds-badge-required">Required</span>
+                                            : <span className="ds-badge ds-badge-optional">Optional</span>
+                                        }
+                                    </div>
+                                    {item.description && <span className="ds-doc-file">{item.description}</span>}
+                                    {item.fileName    && <span className="ds-doc-file">File: {item.fileName}</span>}
+                                </div>
+                                <div className="ds-doc-actions">
+                                    <span className={`ds-doc-status ${st.cls}`}>
+                                        <StIcon size={13} /> {st.label}
+                                    </span>
+                                    {canReupload && (
+                                        <label className={`ds-upload-btn ${isUploading ? "disabled" : ""}`}>
+                                            {isUploading ? (
+                                                <><Loader2 size={13} className="ds-spin" /> Uploading...</>
+                                            ) : (
+                                                <><Upload size={13} /> {item.uploaded ? "Re-upload" : "Upload"}</>
+                                            )}
+                                            <input
+                                                type="file"
+                                                hidden
+                                                disabled={isUploading}
+                                                accept=".pdf,.jpg,.jpeg,.png"
+                                                onChange={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) handleUpload(item.documentTypeId, file);
+                                                    e.target.value = "";
+                                                }}
+                                            />
+                                        </label>
+                                    )}
+                                </div>
                             </div>
-                            <div className="ds-doc-actions">
-                                <span className={`ds-doc-status ${st.cls}`}>
-                                    <StIcon size={13} /> {st.label}
-                                </span>
-                                <label className="ds-upload-btn">
-                                    <Upload size={13} /> {doc ? "Re-upload" : "Upload"}
-                                    <input type="file" hidden onChange={async (e) => {
-                                        const file = e.target.files?.[0];
-                                        if (!file) return;
-                                        const formData = new FormData();
-                                        formData.append("file", file);
-                                        try {
-                                            await fetch(`${config.apiUrl}/users/me/documents/${docDef.type}`, {
-                                                method: "POST", credentials: "include", body: formData,
-                                            });
-                                            toast.success(`${docDef.name} uploaded`);
-                                        } catch { toast.error("Upload failed"); }
-                                    }} />
-                                </label>
-                            </div>
-                        </div>
-                    );
-                })}
+                        );
+                    })
+                )}
             </div>
+
+            {docItems.length > 0 && (
+                <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 12 }}>
+                    {/* Only show submit button when the doctor is allowed to act */}
+                    {!isLocked && (
+                        <form action={submitAction}>
+                            <button
+                                type="submit"
+                                className="ds-save-btn"
+                                disabled={!canSubmit || submitPending}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                            >
+                                {submitPending
+                                    ? <><Loader2 size={14} className="ds-spin" /> Submitting...</>
+                                    : <><ShieldCheck size={14} /> Submit for Verification</>
+                                }
+                            </button>
+                        </form>
+                    )}
+
+                    {/* Helper text — only when unlocked and missing required docs */}
+                    {!isLocked && !allRequiredUploaded && (
+                        <span style={{ color: "#f59e0b", fontSize: 13 }}>
+                            <AlertTriangle size={13} style={{ verticalAlign: "middle", marginRight: 4 }} />
+                            Upload all required documents first
+                        </span>
+                    )}
+
+                    {/* Locked state hint */}
+                    {isLocked && overallStatus !== "VERIFIED" && (
+                        <span style={{ color: "#94a3b8", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
+                            <Lock size={13} />
+                            {overallStatus === "DOCUMENT_SUBMITTED" || overallStatus === "UNDER_REVIEW"
+                                ? "Documents locked — awaiting admin review. Re-upload is available only if your verification is rejected."
+                                : "Your account is verified."
+                            }
+                        </span>
+                    )}
+
+                    <button type="button" className="ds-discard-btn" onClick={loadData} style={{ marginLeft: "auto" }}>
+                        <RefreshCw size={14} /> Refresh
+                    </button>
+                </div>
+            )}
         </div>
     );
 }
@@ -594,7 +930,7 @@ function AccountSection() {
 
 // ────────────────────────── MAIN PAGE ──────────────────────────
 export default function DoctorSettingsPage() {
-    const { user } = useAuth();
+    const { user, doctorProfileData, setDoctorProfileData } = useAuth();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [dirty, setDirty] = useState(false);
@@ -610,19 +946,28 @@ export default function DoctorSettingsPage() {
     const [notifPrefs, setNotifPrefs] = useState({});
     const [privacyPrefs, setPrivacyPrefs] = useState({});
     const [twoFa, setTwoFa] = useState(false);
-    const [documents, setDocuments] = useState([]);
 
     const profileImageRef = useRef(null);
+
+    useEffect(() => {
+        (async () => {
+            const response = await fetchDoctorProfileData();
+            if (response !== null) {
+                setDoctorProfileData(response);
+            } else {
+                setDoctorProfileData({});
+            }
+        })()
+    }, [])
 
     // ── Load all settings on mount ──
     const loadSettings = useCallback(async () => {
         if (!user) return;
         setLoading(true);
         try {
-            const [profileRes, settingsRes, docsRes] = await Promise.allSettled([
+            const [profileRes, settingsRes] = await Promise.allSettled([
                 api("/users/profile"),
                 api("/doctor/settings"),
-                api("/users/me/required-documents"),
             ]);
 
             if (profileRes.status === "fulfilled") setProfile(profileRes.value || {});
@@ -636,7 +981,6 @@ export default function DoctorSettingsPage() {
                 setPrivacyPrefs(s.privacy || {});
                 setTwoFa(s.security?.twoFactorEnabled || false);
             }
-            if (docsRes.status === "fulfilled") setDocuments(docsRes.value || []);
         } catch (e) {
             console.error("Failed to load settings", e);
         }
@@ -754,7 +1098,7 @@ export default function DoctorSettingsPage() {
                 <AvailabilitySection data={availability} onChange={handleAvailChange} />
                 <ConsultationSection data={consultation} onChange={handleConsultChange} />
                 <NotificationsSection data={notifPrefs} onChange={handleNotifChange} />
-                <DocumentsSection documents={documents} />
+                <VerifyDocumentsSection />
                 <SecuritySection twoFa={twoFa} onTwoFaChange={handleTwoFaChange} />
                 <PrivacySection data={privacyPrefs} onChange={handlePrivacyChange} />
                 <AccountSection />

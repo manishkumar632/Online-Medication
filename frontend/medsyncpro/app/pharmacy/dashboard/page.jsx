@@ -3,7 +3,7 @@ import { Calendar, RefreshCw, ChevronDown } from "lucide-react";
 import StatsCards from "./components/StatsCards";
 import GraphReport from "./components/GraphReport";
 import SalesOverview from "./components/SalesOverview";
-import SalesTable from "./components/SalesTable";
+import PrescriptionsTable from "./components/SalesTable";
 
 export default function DashboardPage() {
     return (
@@ -20,7 +20,7 @@ export default function DashboardPage() {
 
             {/* Pharmacy Sales Results header */}
             <div className="pharm-sales-header">
-                <h2 className="pharm-section-title">Pharmacy Sales Results</h2>
+                <h2 className="pharm-section-title">Pharmacy Dashboard Insight</h2>
                 <div className="pharm-sales-controls">
                     <button className="pharm-filter-btn">
                         <Calendar size={14} />
@@ -42,8 +42,8 @@ export default function DashboardPage() {
                 <SalesOverview />
             </div>
 
-            {/* Sales Table */}
-            <SalesTable />
+            {/* Prescriptions Table */}
+            <PrescriptionsTable />
         </div>
     );
 }

@@ -74,7 +74,7 @@ export default function useVerification() {
       formData.append("file", file);
 
       const res = await fetch(
-        `${config.basePath}/api/verification/documents/${documentTypeId}`,
+        `${config.basePath}/verification/documents/${documentTypeId}`,
         {
           method: "POST",
           body: formData,

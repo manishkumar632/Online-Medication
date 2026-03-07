@@ -9,8 +9,6 @@
  */
 
 import {
-  loginService,
-  signupService,
   logoutService,
   getSessionService,
   resendVerificationService,
@@ -19,163 +17,7 @@ import {
 import { NextResponse } from "next/server";
 import api from "./axios";
 import { headers } from "next/headers";
-
-// ─── Validation ───────────────────────────────────────────────────────────────
-
-function validatePassword(password) {
-  if (password.length < 8) return "Password must be at least 8 characters.";
-  if (!/[A-Z]/.test(password))
-    return "Password must contain at least one uppercase letter.";
-  if (!/[a-z]/.test(password))
-    return "Password must contain at least one lowercase letter.";
-  if (!/[0-9]/.test(password))
-    return "Password must contain at least one number.";
-  if (!/[!@#$%^&*(),.?":{}|<>]/.test(password))
-    return "Password must contain at least one special character.";
-  return null;
-}
-
-// ─── Login ────────────────────────────────────────────────────────────────────
-
-export async function loginAction(prevState, formData) {
-  const email = formData.get("email");
-  const password = formData.get("password");
-
-  if (typeof email !== "string" || typeof password !== "string") {
-    return {
-      ...prevState,
-      error: "Invalid form submission.",
-      isLoading: false,
-    };
-  }
-
-  const trimmedEmail = email.trim().toLowerCase();
-
-  if (!trimmedEmail || !password) {
-    return {
-      ...prevState,
-      error: "Email and password are required.",
-      isLoading: false,
-    };
-  }
-
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-    return {
-      ...prevState,
-      error: "Please enter a valid email address.",
-      isLoading: false,
-    };
-  }
-
-  const passwordError = validatePassword(password);
-  if (passwordError)
-    return { ...prevState, error: passwordError, isLoading: false };
-
-  const response = await api.post(
-    "/auth/login",
-    {
-      email: trimmedEmail,
-      password,
-    },
-    {
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store",
-      },
-    },
-  );
-
-  if (!result.success)
-    return { ...prevState, error: result.message, isLoading: false };
-
-  return {
-    user: result.data,
-    isAuthenticated: true,
-    isLoading: false,
-    error: null,
-  };
-}
-
-// ─── Signup ───────────────────────────────────────────────────────────────────
-
-export async function signupAction(prevState, formData) {
-  const name = formData.get("name");
-  const email = formData.get("email");
-  const password = formData.get("password");
-  const confirmPassword = formData.get("confirmPassword");
-  const role = formData.get("role");
-  const termsAccepted = formData.get("termsAccepted") === "on";
-
-  if (
-    typeof name !== "string" ||
-    typeof email !== "string" ||
-    typeof password !== "string" ||
-    typeof confirmPassword !== "string" ||
-    typeof role !== "string"
-  ) {
-    return {
-      ...prevState,
-      success: false,
-      error: "Invalid form submission.",
-      isLoading: false,
-    };
-  }
-
-  if (!name.trim() || !email.trim() || !password || !confirmPassword || !role) {
-    return {
-      ...prevState,
-      success: false,
-      error: "All fields are required.",
-      isLoading: false,
-    };
-  }
-
-  if (password !== confirmPassword) {
-    return {
-      ...prevState,
-      success: false,
-      error: "Passwords do not match.",
-      isLoading: false,
-    };
-  }
-
-  if (!termsAccepted) {
-    return {
-      ...prevState,
-      success: false,
-      error: "You must accept the terms and conditions.",
-      isLoading: false,
-    };
-  }
-
-  const passwordError = validatePassword(password);
-  if (passwordError)
-    return {
-      ...prevState,
-      success: false,
-      error: passwordError,
-      isLoading: false,
-    };
-
-  const result = await signupService({
-    name: name.trim(),
-    email: email.trim().toLowerCase(),
-    password,
-    confirmPassword,
-    role,
-    termsAccepted,
-  });
-
-  if (!result.success)
-    return {
-      ...prevState,
-      success: false,
-      error: result.message,
-      isLoading: false,
-    };
-
-  return { success: true, error: null, isLoading: false };
-}
+import { config } from "@/lib/config";
 
 // ─── Resend verification ──────────────────────────────────────────────────────
 
@@ -218,6 +60,24 @@ export async function logoutAction() {
 
 // ─── Session ──────────────────────────────────────────────────────────────────
 
+
 export async function getSession() {
-  return getSessionService();
+  'use server';
+  try {
+    const res = await serverApiClient("/auth/me", {
+      method: "GET",
+      cache: "no-store",
+      credentials: "include",
+    });
+
+    const body = await res.json();
+
+    console.log("/me body : ", body);
+
+    if (!body.success) return null;
+
+    return body.data ?? null;
+  } catch {
+    return null;
+  }
 }

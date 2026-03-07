@@ -39,6 +39,12 @@ import {
   BarChart3,
 } from "lucide-react";
 import { config } from "@/lib/config";
+import {
+  fetchDoctorsAction,
+  approveVerificationByUserIdAction,
+  rejectVerificationByUserIdAction,
+  requestResubmitAction,
+} from "@/actions/adminAction";
 
 /* ═══════════════════════════════════════════════════════
    MOCK DATA — Rich, realistic doctor data
@@ -78,14 +84,14 @@ const PAGE_SIZE = 8;
 
 function mapApiDoctor(u) {
   const deleted = u.deleted;
-  const vs = u.professionalVerificationStatus; // VERIFIED, DOCUMENT_SUBMITTED, REJECTED, EMAIL_VERIFIED, UNVERIFIED
+  const vs = u.professionalVerificationStatus;
 
   let status = "pending";
   if (deleted) status = "suspended";
   else if (vs === "VERIFIED") status = "verified";
   else if (vs === "REJECTED") status = "rejected";
   else if (vs === "DOCUMENT_SUBMITTED") status = "pending";
-  else status = "inactive"; // EMAIL_VERIFIED or UNVERIFIED — haven't submitted docs yet
+  else status = "inactive";
 
   return {
     id: u.id,
@@ -109,12 +115,25 @@ function mapApiDoctor(u) {
     prescriptions: 0,
     bio: "",
     address: "",
+    // ── Document summary booleans (used in table row badges) ──────────────
+    // Use .includes() because the full codes are e.g. "MEDICAL_LICENSE",
+    // "DEGREE_CERTIFICATE", "IDENTITY_PROOF" — not the short forms.
     documents: {
-      license: (u.documents || []).some((d) => d.type === "LICENSE"),
-      degree: (u.documents || []).some((d) => d.type === "DEGREE"),
-      idProof: (u.documents || []).some((d) => d.type === "ID_PROOF"),
+      license: (u.documents || []).some((d) => d.type?.includes("LICENSE")),
+      degree: (u.documents || []).some((d) => d.type?.includes("DEGREE")),
+      idProof: (u.documents || []).some(
+        (d) => d.type?.includes("IDENTITY") || d.type?.includes("ID_PROOF"),
+      ),
     },
-    rawDocuments: u.documents || [],
+    // ── Raw list for the drawer preview panel ─────────────────────────────
+    // DocumentResponse shape: { type, url, fileName, fileSize, status }
+    rawDocuments: (u.documents || []).map((d) => ({
+      type: d.type,
+      url: d.url, // ← DocumentResponse.url (was d.fileUrl — wrong field name)
+      fileName: d.fileName,
+      fileSize: d.fileSize,
+      status: d.status,
+    })),
     notes: "",
     lastActive: u.updatedAt ? getTimeAgo(u.updatedAt) : "—",
     riskFlag: false,
@@ -145,22 +164,19 @@ export default function DoctorsPage() {
   const [adminNote, setAdminNote] = useState("");
   const [confirmAction, setConfirmAction] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [rejectComment, setRejectComment] = useState("");
+  const [resubmitModal, setResubmitModal] = useState(null);
+  const [resubmitDocs, setResubmitDocs] = useState([]);
+  const [resubmitComment, setResubmitComment] = useState("");
+  const [resubmitLoading, setResubmitLoading] = useState(false);
 
   /* ── Fetch doctors from API ── */
   const fetchDoctors = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        role: "DOCTOR",
-        page: 0,
-        size: 100,
-      });
-      const res = await fetch(`${config.apiUrl}/admin/users?${params}`, {
-        credentials: "include",
-      });
-      const data = await res.json();
-      if (data.success && data.data) {
-        setDoctors((data.data.content || []).map(mapApiDoctor));
+      const result = await fetchDoctorsAction();
+      if (result.success) {
+        setDoctors((result.content || []).map(mapApiDoctor));
       }
     } catch {
       setDoctors([]);
@@ -234,40 +250,59 @@ export default function DoctorsPage() {
   const confirmActionHandler = async () => {
     if (!confirmAction) return;
     const { type, doctor } = confirmAction;
-    const actionMap = {
-      approve: "approve",
-      reject: "reject",
-      suspend: "suspend",
-      activate: "activate",
-    };
-    const statusAfterAction = {
-      approve: "verified",
-      reject: "rejected",
-      suspend: "suspended",
-      activate: "verified",
-    };
-    const endpoint = actionMap[type];
-    if (!endpoint) return;
+
     try {
-      const res = await fetch(
-        `${config.apiUrl}/admin/users/${doctor.id}/${endpoint}`,
-        {
-          method: "PATCH",
-          credentials: "include",
-        },
+      if (type === "approve") {
+        const result = await approveVerificationByUserIdAction(doctor.id);
+        if (result.success) {
+          updateDoctor(doctor.id, {
+            status: "verified",
+            accountStatus: "active",
+          });
+          fetchDoctors();
+        }
+      } else if (type === "reject") {
+        const result = await rejectVerificationByUserIdAction(
+          doctor.id,
+          rejectComment.trim() || "Rejected by admin.",
+        );
+        if (result.success) {
+          updateDoctor(doctor.id, {
+            status: "rejected",
+            accountStatus: "inactive",
+          });
+          fetchDoctors();
+        }
+      }
+      // suspend / activate handled separately when those endpoints are ready
+    } catch {
+      /* silent */
+    }
+
+    setConfirmAction(null);
+    setRejectComment("");
+  };
+
+  const handleResubmitSubmit = async () => {
+    if (!resubmitModal || resubmitDocs.length === 0) return;
+    setResubmitLoading(true);
+    try {
+      const result = await requestResubmitAction(
+        resubmitModal.doctor.id,
+        resubmitDocs,
+        resubmitComment,
       );
-      if (res.ok) {
-        const newStatus = statusAfterAction[type] || doctor.status;
-        updateDoctor(doctor.id, {
-          status: newStatus,
-          accountStatus: newStatus === "suspended" ? "suspended" : "active",
-        });
-        fetchDoctors(); // Refresh list from API
+      if (result.success) {
+        updateDoctor(resubmitModal.doctor.id, { status: "pending" });
+        fetchDoctors();
       }
     } catch {
       /* silent */
     }
-    setConfirmAction(null);
+    setResubmitLoading(false);
+    setResubmitModal(null);
+    setResubmitDocs([]);
+    setResubmitComment("");
   };
 
   const bulkAction = async (type) => {
@@ -808,6 +843,7 @@ export default function DoctorsPage() {
           doc={drawerDoc}
           onClose={() => setDrawerDoc(null)}
           onAction={handleAction}
+          onResubmit={(doctor) => setResubmitModal({ doctor })}
           getInitials={getInitials}
           getAvatarColor={getAvatarColor}
           adminNote={adminNote}
@@ -820,7 +856,10 @@ export default function DoctorsPage() {
       {confirmAction && (
         <div
           className="dm-modal-overlay"
-          onClick={() => setConfirmAction(null)}
+          onClick={() => {
+            setConfirmAction(null);
+            setRejectComment("");
+          }}
         >
           <div className="dm-modal" onClick={(e) => e.stopPropagation()}>
             <h3>
@@ -832,15 +871,42 @@ export default function DoctorsPage() {
               Are you sure you want to <strong>{confirmAction.type}</strong>{" "}
               <strong>{confirmAction.doctor.name}</strong>?
             </p>
+
+            {confirmAction.type === "reject" && (
+              <textarea
+                style={{
+                  width: "100%",
+                  marginTop: 12,
+                  padding: "8px 10px",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  resize: "vertical",
+                  minHeight: 72,
+                  outline: "none",
+                  fontFamily: "inherit",
+                }}
+                placeholder="Reason for rejection (required)..."
+                value={rejectComment}
+                onChange={(e) => setRejectComment(e.target.value)}
+              />
+            )}
+
             <div className="dm-modal-actions">
               <button
                 className="dm-modal-cancel"
-                onClick={() => setConfirmAction(null)}
+                onClick={() => {
+                  setConfirmAction(null);
+                  setRejectComment("");
+                }}
               >
                 Cancel
               </button>
               <button
                 className={`dm-modal-confirm ${confirmAction.type}`}
+                disabled={
+                  confirmAction.type === "reject" && !rejectComment.trim()
+                }
                 onClick={confirmActionHandler}
               >
                 {confirmAction.type === "approve" && <CheckCircle2 size={14} />}
@@ -849,6 +915,114 @@ export default function DoctorsPage() {
                 {confirmAction.type === "activate" && <Shield size={14} />}
                 {confirmAction.type.charAt(0).toUpperCase() +
                   confirmAction.type.slice(1)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {resubmitModal && (
+        <div
+          className="dm-modal-overlay"
+          onClick={() => {
+            setResubmitModal(null);
+            setResubmitDocs([]);
+            setResubmitComment("");
+          }}
+        >
+          <div
+            className="dm-modal"
+            style={{ maxWidth: 440 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3>⚠️ Request Document Re-upload</h3>
+            <p>
+              Select which documents{" "}
+              <strong>{resubmitModal.doctor.name}</strong> should re-upload,
+              then add an optional note.
+            </p>
+
+            {/* Document checkboxes — matches the 3 known doc types */}
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                margin: "12px 0",
+              }}
+            >
+              {[
+                { code: "MEDICAL_LICENSE", label: "Medical License" },
+                { code: "DEGREE_CERTIFICATE", label: "Degree Certificate" },
+                { code: "IDENTITY_PROOF", label: "ID Proof" },
+              ].map(({ code, label }) => (
+                <label
+                  key={code}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    cursor: "pointer",
+                    background: resubmitDocs.includes(code)
+                      ? "#f0fdf4"
+                      : "#f8fafc",
+                    border: `1px solid ${resubmitDocs.includes(code) ? "#0d9488" : "#e2e8f0"}`,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={resubmitDocs.includes(code)}
+                    onChange={() =>
+                      setResubmitDocs((prev) =>
+                        prev.includes(code)
+                          ? prev.filter((c) => c !== code)
+                          : [...prev, code],
+                      )
+                    }
+                    style={{ accentColor: "#0d9488" }}
+                  />
+                  <span style={{ fontSize: 14 }}>{label}</span>
+                </label>
+              ))}
+            </div>
+
+            {/* Optional admin note */}
+            <textarea
+              style={{
+                width: "100%",
+                padding: "8px 10px",
+                border: "1px solid #e2e8f0",
+                borderRadius: 8,
+                fontSize: 13,
+                resize: "vertical",
+                minHeight: 64,
+                outline: "none",
+                fontFamily: "inherit",
+              }}
+              placeholder="Optional note to doctor (e.g. 'Image is blurry, please re-upload')..."
+              value={resubmitComment}
+              onChange={(e) => setResubmitComment(e.target.value)}
+            />
+
+            <div className="dm-modal-actions" style={{ marginTop: 12 }}>
+              <button
+                className="dm-modal-cancel"
+                onClick={() => {
+                  setResubmitModal(null);
+                  setResubmitDocs([]);
+                  setResubmitComment("");
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="dm-modal-confirm reject"
+                disabled={resubmitDocs.length === 0 || resubmitLoading}
+                onClick={handleResubmitSubmit}
+                style={{ background: "#ca8a04", borderColor: "#ca8a04" }}
+              >
+                {resubmitLoading ? "Sending…" : "Send Request"}
               </button>
             </div>
           </div>
@@ -929,6 +1103,18 @@ function DoctorActions({ doc, onAction, onView }) {
               </button>
             </>
           )}
+          {doc.status === "pending" && (
+            <button
+              className="dm-act-warn"
+              style={{ color: "#ca8a04" }}
+              onClick={() => {
+                setResubmitModal({ doctor: doc }); // ← pass the doctor object up via onResubmit prop
+                setOpen(false);
+              }}
+            >
+              <RefreshCw size={14} /> Request Re-upload
+            </button>
+          )}
           {doc.status !== "suspended" && doc.status !== "pending" && (
             <button
               className="dm-act-suspend"
@@ -969,6 +1155,7 @@ function DoctorDrawer({
   doc,
   onClose,
   onAction,
+  onResubmit,
   getInitials,
   getAvatarColor,
   adminNote,
@@ -980,9 +1167,9 @@ function DoctorDrawer({
 
   const findDocByKey = (key) => {
     const typeMap = {
-      license: "LICENSE",
-      degree: "DEGREE",
-      idProof: "ID_PROOF",
+      license: "MEDICAL_LICENSE", // was "LICENSE"
+      degree: "DEGREE_CERTIFICATE", // was "DEGREE"
+      idProof: "IDENTITY_PROOF", // was "ID_PROOF"
     };
     return (doc.rawDocuments || []).find((d) => d.type === typeMap[key]);
   };
@@ -1248,6 +1435,40 @@ function DoctorDrawer({
                 onClick={() => onAction("reject", doc)}
               >
                 <XCircle size={16} /> Reject
+              </button>
+              <button
+                className="dm-drawer-resubmit"
+                onClick={() => onResubmit(doc)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  border: "1.5px solid #d97706",
+                  background: "#fffbeb",
+                  color: "#d97706",
+                  fontWeight: 600,
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M21 2v6h-6" />
+                  <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+                  <path d="M3 22v-6h6" />
+                  <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+                </svg>
+                Request Re-upload
               </button>
             </>
           )}

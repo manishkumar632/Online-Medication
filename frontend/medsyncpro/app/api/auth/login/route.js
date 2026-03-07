@@ -1,3 +1,5 @@
+// app/api/auth/login/route.js
+
 import { NextResponse } from "next/server";
 import { config } from "@/lib/config";
 
@@ -7,7 +9,6 @@ export async function POST(req) {
     const email = body?.email?.trim().toLowerCase();
     const password = body?.password;
 
-    // Basic validation
     if (!email || !password) {
       return NextResponse.json(
         { success: false, message: "Email and password are required" },
@@ -15,7 +16,6 @@ export async function POST(req) {
       );
     }
 
-    // Email format validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return NextResponse.json(
@@ -24,7 +24,6 @@ export async function POST(req) {
       );
     }
 
-    // Prevent extremely large payload abuse
     if (password.length > 32) {
       return NextResponse.json(
         { success: false, message: "Invalid input" },
@@ -48,7 +47,6 @@ export async function POST(req) {
       );
     }
 
-    // Build a structured response with user data for session storage + forward cookies
     const res = NextResponse.json(
       {
         success: responseData.success ?? backendRes.ok,
@@ -58,10 +56,31 @@ export async function POST(req) {
       { status: backendRes.status },
     );
 
-    // Forward set-cookie headers from backend (JWT token)
+    // Forward backend cookies (access_token)
     const setCookie = backendRes.headers.get("set-cookie");
+
     if (setCookie) {
-      res.headers.set("set-cookie", setCookie);
+      const tokenMatch = setCookie.match(/access_token=([^;]+)/);
+
+      if (tokenMatch) {
+        res.cookies.set("access_token", tokenMatch[1], {
+          httpOnly: true,
+          sameSite: "lax",
+          path: "/",
+          secure: process.env.NODE_ENV === "production",
+          maxAge: 60 * 60 * 24,
+        });
+      }
+    }
+
+    if (responseData?.data?.role) {
+      res.cookies.set("user_role", responseData.data.role, {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 60 * 60 * 24,
+      });
     }
 
     return res;

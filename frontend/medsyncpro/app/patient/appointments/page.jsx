@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../context/AuthContext";
 import RouteGuard from "../../components/RouteGuard";
-import { config } from "@/lib/config";
+import { fetchPatientAppointments } from "@/actions/appointmentAction";
 import {
     Search, X, Calendar, Clock, Video, Building2, MessageSquare,
     ChevronRight, Filter, CalendarX, Plus, Stethoscope
@@ -59,10 +59,9 @@ function PatientAppointments() {
     const fetchAppointments = async () => {
         setLoading(true);
         try {
-            const res = await fetch(`${config.apiUrl}/appointments/my?page=${page}&size=20`, { credentials: "include" });
-            const data = await res.json();
-            if (data.success) {
-                const pageData = data.data;
+            const result = await fetchPatientAppointments(page, 20);
+            if (result.success) {
+                const pageData = result.data;
                 setAppointments(pageData?.content || pageData || []);
                 setTotalPages(pageData?.totalPages || 1);
             }
@@ -126,20 +125,20 @@ function PatientAppointments() {
             </div>
 
             {/* List */}
-            {loading ? (
-                <div className="pw-loading"><div className="pw-spinner" /></div>
-            ) : filtered.length === 0 ? (
-                <div className="pw-empty">
-                    <CalendarX size={48} />
-                    <h3>No appointments found</h3>
-                    <p>{statusFilter !== "All" ? "Try changing the status filter" : "Book your first appointment"}</p>
-                    <button className="pw-btn pw-btn-primary" style={{ margin: "16px auto 0" }} onClick={() => router.push("/patient/doctors")}>
-                        <Plus size={16} /> Find Doctors
-                    </button>
-                </div>
-            ) : (
-                <div className="pw-appt-list">
-                    {filtered.map(appt => {
+            <div className="pw-appt-list">
+                {loading ? (
+                    <div className="pw-loading"><div className="pw-spinner" /></div>
+                ) : filtered.length === 0 ? (
+                    <div className="pw-empty">
+                        <CalendarX size={48} />
+                        <h3>No appointments found</h3>
+                        <p>{statusFilter !== "All" ? "Try changing the status filter" : "Book your first appointment"}</p>
+                        <button className="pw-btn pw-btn-primary" style={{ margin: "16px auto 0" }} onClick={() => router.push("/patient/doctors")}>
+                            <Plus size={16} /> Find Doctors
+                        </button>
+                    </div>
+                ) : (
+                    filtered.map(appt => {
                         const { day, month } = formatDate(appt.scheduledDate);
                         const TypeIcon = TYPE_ICONS[appt.type] || Video;
                         return (
@@ -176,9 +175,9 @@ function PatientAppointments() {
                                 <ChevronRight size={18} style={{ color: "var(--pw-muted)" }} />
                             </div>
                         );
-                    })}
-                </div>
-            )}
+                    })
+                )}
+            </div>
 
             {/* Pagination */}
             {totalPages > 1 && (

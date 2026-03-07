@@ -12,15 +12,15 @@ import { useAuth } from "@/app/context/AuthContext";
 import { useNotifications } from "@/app/context/NotificationContext";
 
 const allMenuItems = [
-    { name: "Dashboard", icon: LayoutDashboard, href: "/doctor/dashboard", requiresVerification: false },
-    { name: "Appointments", icon: CalendarCheck, href: "/doctor/appointments", requiresVerification: true },
-    { name: "Patients", icon: Users, href: "/doctor/patients", requiresVerification: true },
-    { name: "Prescriptions", icon: Pill, href: "#", requiresVerification: true },
-    { name: "Medical Records", icon: FolderHeart, href: "#", requiresVerification: true },
-    { name: "Messages", icon: MessageSquare, href: "#", requiresVerification: false },
-    { name: "Schedule", icon: Clock, href: "#", requiresVerification: true },
-    { name: "Reports", icon: BarChart3, href: "#", requiresVerification: true },
-    { name: "Notifications", icon: Bell, href: "#", requiresVerification: false, useBadge: "notifications" },
+    { name: "Dashboard", icon: LayoutDashboard, href: "/doctor/dashboard" },
+    { name: "Appointments", icon: CalendarCheck, href: "/doctor/appointments" },
+    { name: "Patients", icon: Users, href: "/doctor/patients" },
+    { name: "Prescriptions", icon: Pill, href: "#" },
+    { name: "Medical Records", icon: FolderHeart, href: "#" },
+    { name: "Messages", icon: MessageSquare, href: "#", useBadge: "notifications" },
+    { name: "Schedule", icon: Clock, href: "#" },
+    { name: "Reports", icon: BarChart3, href: "#" },
+    { name: "Notifications", icon: Bell, href: "#", useBadge: "notifications" },
 ];
 
 const settingsSubItems = [
@@ -31,6 +31,7 @@ const settingsSubItems = [
     { id: "consultation", label: "Consultation", icon: MessageSquareText },
     { id: "notifications", label: "Notifications", icon: Bell },
     { id: "documents", label: "Documents", icon: FileCheck },
+    { id: "verify-document", label: "Verify Document", icon: ShieldCheck },
     { id: "security", label: "Security", icon: ShieldCheck },
     { id: "privacy", label: "Privacy", icon: Lock },
     { id: "account", label: "Account", icon: UserX },
@@ -52,17 +53,6 @@ export default function DoctorSidebar({ collapsed, onToggle }) {
     } catch {
         // NotificationContext may not be available
     }
-
-    const isVerified = user?.professionalVerificationStatus === "VERIFIED";
-
-    // Fallback: periodically poll for verification status changes if not verified
-    useEffect(() => {
-        if (isVerified || !user || user.role !== "DOCTOR") return;
-        const interval = setInterval(() => {
-            validateSession?.();
-        }, 30000); // Poll every 30 seconds
-        return () => clearInterval(interval);
-    }, [isVerified, user, validateSession]);
 
     // Smooth height transition
     useEffect(() => {
@@ -98,24 +88,18 @@ export default function DoctorSidebar({ collapsed, onToggle }) {
 
                 <nav className="doc-sidebar-nav">
                     {allMenuItems.map((item) => {
-                        const isLocked = item.requiresVerification && !isVerified;
                         const badge = item.useBadge === "notifications" ? unreadCount : null;
 
                         return (
                             <Link
                                 key={item.name}
-                                href={isLocked ? "#" : (item.href || "#")}
-                                className={`doc-nav-item ${pathname === item.href ? "active" : ""} ${isLocked ? "locked" : ""}`}
-                                title={collapsed ? item.name : (isLocked ? `${item.name} (Verification required)` : undefined)}
-                                onClick={isLocked ? (e) => e.preventDefault() : undefined}
-                                style={isLocked ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
+                                href={item.href || "#"}
+                                className={`doc-nav-item ${pathname === item.href ? "active" : ""}`}
+                                title={collapsed ? item.name : undefined}
                             >
                                 <item.icon size={19} />
                                 {!collapsed && <span>{item.name}</span>}
-                                {isLocked && !collapsed && (
-                                    <Lock size={13} style={{ marginLeft: "auto", color: "#9ca3af" }} />
-                                )}
-                                {!isLocked && !collapsed && badge > 0 && (
+                                {!collapsed && badge > 0 && (
                                     <span className="doc-nav-badge">{badge}</span>
                                 )}
                             </Link>

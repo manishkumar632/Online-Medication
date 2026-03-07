@@ -105,11 +105,11 @@ export async function loginService(credentials) {
 
 export async function signupService(userData) {
   try {
-    const body = await serverApiClient("/auth/register", {
+    const response = await serverApiClient("/auth/register", {
       method: "POST",
       body: JSON.stringify(userData),
     });
-    return { success: body.success, message: body.message };
+    return { success: response.data.success, message: response.data.message };
   } catch (error) {
     const message =
       error instanceof ApiError
@@ -123,11 +123,11 @@ export async function signupService(userData) {
 
 export async function resendVerificationService(email) {
   try {
-    const body = await serverApiClient(
+    const response = await serverApiClient(
       `/auth/resend-verification?email=${encodeURIComponent(email)}`,
       { method: "POST" },
     );
-    return { success: body.success, message: body.message };
+    return { success: response.data.success, message: response.data.message };
   } catch (error) {
     const message =
       error instanceof ApiError
@@ -141,13 +141,13 @@ export async function resendVerificationService(email) {
 
 export async function verifyEmailService(token) {
   try {
-    const body = await serverApiClient("/auth/verify-email", {
+    const response = await serverApiClient("/auth/verify-email", {
       method: "POST",
       body: JSON.stringify({ token }),
     });
     return {
-      success: body.success,
-      message: body.message ?? "Your email has been verified successfully!",
+      success: response.data.success,
+      message: response.data.message ?? "Your email has been verified successfully!",
     };
   } catch (error) {
     const message =
@@ -169,15 +169,4 @@ export async function logoutService() {
     await clearAuthCookies();
   }
   return { success: true, message: "Logged out successfully." };
-}
-
-// ─── Session ──────────────────────────────────────────────────────────────────
-
-export async function getSessionService() {
-  try {
-    const body = await serverApiClient("/auth/me");
-    return body.success && body.data ? body.data : null;
-  } catch {
-    return null;
-  }
 }

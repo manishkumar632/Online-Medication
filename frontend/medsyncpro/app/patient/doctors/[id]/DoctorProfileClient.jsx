@@ -2,18 +2,9 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "../../../context/AuthContext";
+import { fetchDoctorSlots, bookAppointment, fetchDoctorPublicProfile } from "@/actions/appointmentAction";
 import "../../patient-dashboard.css";
 import "./doctor-profile.css";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-
-async function fetchWithAuth(url, token) {
-    const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    });
-    if (!res.ok) throw new Error(`API error: ${res.status}`);
-    return res.json();
-}
 
 const I = ({ d, size = 18, stroke = "currentColor", fill = "none" }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={stroke}
@@ -23,7 +14,7 @@ const I = ({ d, size = 18, stroke = "currentColor", fill = "none" }) => (
 );
 
 /* ─── Book Appointment Modal ─── */
-function BookAppointmentModal({ doctor, onClose, token }) {
+function BookAppointmentModal({ doctor, onClose }) {
     const [slots, setSlots] = useState([]);
     const [slotsLoading, setSlotsLoading] = useState(true);
     const [slotsError, setSlotsError] = useState(null);
@@ -41,35 +32,36 @@ function BookAppointmentModal({ doctor, onClose, token }) {
 
     useEffect(() => {
         setSlotsLoading(true);
-        fetchWithAuth(`${API_BASE}/doctors/${doctor.id}/slots?type=${consultType}`, token)
-            .then(data => {
-                const list = Array.isArray(data) ? data : (data.slots || data.content || []);
-                setSlots(list);
+        setSlotsError(null);
+        fetchDoctorSlots(doctor.id, consultType)
+            .then(result => {
+                if (result.success) {
+                    setSlots(result.data || []);
+                } else {
+                    setSlotsError(result.message || "Failed to load slots");
+                }
             })
             .catch(err => setSlotsError(err.message))
             .finally(() => setSlotsLoading(false));
-    }, [doctor.id, consultType, token]);
+    }, [doctor.id, consultType]);
 
     const handleBook = async () => {
         if (!selectedSlot) return;
         setBooking(true);
         setBookingError(null);
         try {
-            const res = await fetch(`${API_BASE}/api/appointments`, {
-                method: "POST",
-                headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    doctorId: doctor.id,
-                    slotId: selectedSlot.id,
-                    consultationType: consultType,
-                    reason,
-                }),
+            const result = await bookAppointment({
+                doctorId: doctor.id,
+                scheduledDate: selectedSlot.date,
+                scheduledTime: selectedSlot.time,
+                type: consultType === "ONLINE" ? "VIDEO" : consultType,
+                symptoms: reason,
             });
-            if (!res.ok) {
-                const errData = await res.json().catch(() => ({}));
-                throw new Error(errData.message || `Booking failed: ${res.status}`);
+            if (result.success) {
+                setBookingSuccess(true);
+            } else {
+                setBookingError(result.message || "Booking failed");
             }
-            setBookingSuccess(true);
         } catch (err) {
             setBookingError(err.message);
         } finally {
@@ -136,8 +128,8 @@ function BookAppointmentModal({ doctor, onClose, token }) {
                                             const available = slot.available !== false && slot.status !== "BOOKED";
                                             return (
                                                 <button
-                                                    key={slot.id}
-                                                    className={`dp-slot-btn ${selectedSlot?.id === slot.id ? "selected" : ""} ${!available ? "booked" : ""}`}
+                                                    key={`${slot.date}-${slot.time}`}
+                                                    className={`dp-slot-btn ${selectedSlot?.date === slot.date && selectedSlot?.time === slot.time ? "selected" : ""} ${!available ? "booked" : ""}`}
                                                     disabled={!available}
                                                     onClick={() => setSelectedSlot(slot)}
                                                 >
@@ -184,7 +176,7 @@ export default function DoctorProfileClient() {
     const router = useRouter();
     const params = useParams();
     const searchParams = useSearchParams();
-    const { user, token } = useAuth();
+    const { user } = useAuth();
 
     const doctorId = params?.id;
     const openBook = searchParams.get("action") === "book";
@@ -200,17 +192,22 @@ export default function DoctorProfileClient() {
     useEffect(() => {
         if (!doctorId) return;
         setLoading(true);
-        fetchWithAuth(`${API_BASE}/doctors/${doctorId}`, token)
-            .then(data => {
-                if (data.status === "UNVERIFIED" || data.status === "SUSPENDED") {
-                    setError("This doctor is no longer available for appointments.");
+        fetchDoctorPublicProfile(doctorId)
+            .then(result => {
+                if (result.success) {
+                    const data = result.data;
+                    if (data.status === "UNVERIFIED" || data.status === "SUSPENDED") {
+                        setError("This doctor is no longer available for appointments.");
+                    } else {
+                        setDoctor(data);
+                    }
                 } else {
-                    setDoctor(data);
+                    setError(result.message || "Failed to load doctor profile");
                 }
             })
             .catch(err => setError(err.message))
             .finally(() => setLoading(false));
-    }, [doctorId, token]);
+    }, [doctorId]);
 
     if (loading) return (
         <div className="dp-full-loading">
@@ -423,7 +420,6 @@ export default function DoctorProfileClient() {
             {showBookModal && doctor && (
                 <BookAppointmentModal
                     doctor={doctor}
-                    token={token}
                     onClose={() => setShowBookModal(false)}
                 />
             )}

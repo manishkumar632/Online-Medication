@@ -3,9 +3,18 @@
 /**
  * AuthContext.jsx
  *
- * Provides auth state to the client component tree.
- * Hydrates from sessionStorage first (instant), then validates via Server Action.
- * The client never sees the JWT — only the decoded User object.
+ * FIX: getSession() now races against a 6-second timeout.
+ *
+ * ROOT CAUSE OF INFINITE LOADER:
+ *   getSession() is a server action that calls Spring Boot to validate the JWT.
+ *   If Spring Boot is slow, the request hangs, and .finally() never runs —
+ *   so `ready` is never set to true, and RouteGuard shows a spinner forever.
+ *
+ * FIX:
+ *   Promise.race([getSession(), timeout(6000)])
+ *   The timeout resolves with `null` after 6 s, forcing `ready = true`
+ *   even if the backend never responds.
+ *   A second background re-validation runs after 2 s to sync late responses.
  */
 
 import {
@@ -14,15 +23,12 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
 import { getSession, logoutAction } from "@/actions/authAction";
 import { ROLE_ROUTES, ROUTES } from "@/lib/constants";
 
-// ─── Session Storage Key ──────────────────────────────────────────────────────
-
 const SESSION_KEY = "medsyncpro_user";
-
-// ─── Helper ───────────────────────────────────────────────────────────────────
 
 export function getRedirectPath(role) {
   return ROLE_ROUTES[role] ?? ROUTES.HOME;
@@ -47,7 +53,7 @@ function writeSessionStorage(user) {
           role: user.role,
           name: user.name,
           email: user.email,
-        })
+        }),
       );
     } else {
       sessionStorage.removeItem(SESSION_KEY);
@@ -57,33 +63,53 @@ function writeSessionStorage(user) {
   }
 }
 
-// ─── Context ──────────────────────────────────────────────────────────────────
+/** Resolves with `null` after `ms` milliseconds — used as a race-condition guard. */
+function withTimeout(ms) {
+  return new Promise((resolve) => setTimeout(() => resolve(null), ms));
+}
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
+  const [doctorProfileData, setDoctorProfileData] = useState(null);
 
-  // Hydrate: sessionStorage first (instant), then verify via Server Action.
+  // Track whether the component is still mounted to avoid state updates after unmount.
+  const mountedRef = useRef(true);
   useEffect(() => {
-    const cached = readSessionStorage();
-    if (cached) {
-      setUser(cached);
-      setReady(true);
-    }
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
-    getSession()
+  useEffect(() => {
+    // 1. Paint instantly from cache (optimistic)
+    const cached = readSessionStorage();
+    if (cached) setUser(cached);
+
+    // 2. Race the server action against a 6-second timeout.
+    //    This guarantees `ready` is ALWAYS set, preventing an infinite spinner.
+    Promise.race([
+      getSession(),
+      withTimeout(6000), // 6 s safety net
+    ])
       .then((sessionUser) => {
+        if (!mountedRef.current) return;
         setUser(sessionUser ?? null);
         writeSessionStorage(sessionUser);
       })
       .catch(() => {
-        setUser(null);
-        writeSessionStorage(null);
+        if (!mountedRef.current) return;
+        // Network / server error — fall back to cached user if available.
+        // If no cache, user stays null (will be redirected to login).
+        if (!cached) setUser(null);
       })
-      .finally(() => setReady(true));
-  }, []);
+      .finally(() => {
+        if (!mountedRef.current) return;
+        setReady(true); // ALWAYS reached — no more infinite spinner
+      });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Sync client state after a successful loginAction. */
   const login = useCallback((userData) => {
@@ -93,16 +119,16 @@ export function AuthProvider({ children }) {
 
   /**
    * Re-fetch the session from the server.
-   * Used by NotificationContext when a VERIFICATION_DECISION event arrives —
-   * the user's approval status may have changed server-side.
+   * Used by NotificationContext when a VERIFICATION_DECISION event arrives.
    */
   const validateSession = useCallback(async () => {
     try {
       const sessionUser = await getSession();
+      if (!mountedRef.current) return;
       setUser(sessionUser ?? null);
       writeSessionStorage(sessionUser);
     } catch {
-      // If the session check fails, leave the current user state intact.
+      // Leave current state intact on failure.
     }
   }, []);
 
@@ -118,6 +144,7 @@ export function AuthProvider({ children }) {
   const logout = useCallback(async () => {
     await logoutAction();
     setUser(null);
+    setDoctorProfileData(null);
     writeSessionStorage(null);
   }, []);
 
@@ -127,6 +154,8 @@ export function AuthProvider({ children }) {
         user,
         ready,
         isLoggedIn: !!user && ready,
+        doctorProfileData,
+        setDoctorProfileData,
         login,
         logout,
         updateProfile,

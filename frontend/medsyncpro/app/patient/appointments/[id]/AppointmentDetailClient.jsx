@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "../../../context/AuthContext";
 import RouteGuard from "../../../components/RouteGuard";
-import { API_BASE_URL } from "@/lib/config";
+import { fetchPatientAppointmentDetail, cancelPatientAppointment } from "@/actions/appointmentAction";
 import {
     ArrowLeft, Calendar, Clock, Video, Building2, MessageSquare,
     FileText, Pill, ChevronRight, User, Phone, Mail, MapPin,
@@ -53,47 +53,35 @@ export default function AppointmentDetailClient() {
     const fetchDetail = async () => {
         setLoading(true);
         try {
-            const res = await fetch(`${API_BASE_URL}/api/appointments/${apptId}`, { credentials: "include" });
-            const data = await res.json();
-            if (data.success) setAppt(data.data);
+            const result = await fetchPatientAppointmentDetail(apptId);
+            if (result.success) setAppt(result.data);
         } catch (err) { console.error(err); }
         setLoading(false);
     };
 
     const fetchChat = async () => {
-        try {
-            const res = await fetch(`${API_BASE_URL}/api/appointments/${apptId}/chat?page=0&size=100`, { credentials: "include" });
-            const data = await res.json();
-            if (data.success) setChatMessages(data.data?.content || []);
-        } catch (err) { console.error(err); }
+        // Chat endpoints not yet implemented in backend — skip gracefully
     };
 
     const handleCancel = async () => {
         setCancelling(true);
         try {
-            const res = await fetch(`${API_BASE_URL}/api/appointments/${apptId}/cancel`, {
-                method: "PATCH", headers: { "Content-Type": "application/json" },
-                credentials: "include", body: JSON.stringify({ reason: cancelReason.trim() || null }),
-            });
-            const data = await res.json();
-            if (data.success) { setToast({ type: "success", message: "Appointment cancelled" }); setAppt(data.data); setCancelModal(false); }
-            else { setToast({ type: "error", message: data.message || "Failed to cancel" }); }
+            const result = await cancelPatientAppointment(apptId);
+            if (result.success) {
+                setToast({ type: "success", message: "Appointment cancelled" });
+                setAppt(result.data);
+                setCancelModal(false);
+            } else {
+                setToast({ type: "error", message: result.message || "Failed to cancel" });
+            }
         } catch (err) { setToast({ type: "error", message: "Network error" }); }
         setCancelling(false);
     };
 
     const handleSendChat = async () => {
+        // Chat endpoints not yet implemented in backend — skip gracefully
         if (!chatInput.trim()) return;
-        setSendingChat(true);
-        try {
-            const res = await fetch(`${API_BASE_URL}/api/appointments/${apptId}/chat`, {
-                method: "POST", headers: { "Content-Type": "application/json" },
-                credentials: "include", body: JSON.stringify({ content: chatInput.trim(), messageType: "TEXT" }),
-            });
-            const data = await res.json();
-            if (data.success) { setChatMessages(prev => [...prev, data.data]); setChatInput(""); }
-        } catch (err) { console.error(err); }
-        setSendingChat(false);
+        setToast({ type: "error", message: "Chat feature coming soon" });
     };
 
     useEffect(() => { if (toast) { const t = setTimeout(() => setToast(null), 3000); return () => clearTimeout(t); } }, [toast]);

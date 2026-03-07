@@ -45,6 +45,8 @@ const DEFAULT_ROLE = "PATIENT";
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SignupPage() {
+  const router = useRouter();
+  
   // ── UI state ────────────────────────────────────────────────────────────────
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -78,9 +80,13 @@ export default function SignupPage() {
       }),
     });
 
-    if (!response.ok) {
-      const clone = await response.json();
-      console.log("response data: ", clone);
+    const data = await response.json();
+
+    if (response.ok) {
+      toast.success(data.message || "Registration successful!");
+      router.push(`/auth/email-sent?email=${encodeURIComponent(email)}`);
+    } else {
+      setError(data.message || "Registration failed");
       setIsPending(false);
     }
   }
