@@ -1,22 +1,5 @@
 "use client";
 
-/**
- * AuthContext.jsx
- *
- * FIX: getSession() now races against a 6-second timeout.
- *
- * ROOT CAUSE OF INFINITE LOADER:
- *   getSession() is a server action that calls Spring Boot to validate the JWT.
- *   If Spring Boot is slow, the request hangs, and .finally() never runs —
- *   so `ready` is never set to true, and RouteGuard shows a spinner forever.
- *
- * FIX:
- *   Promise.race([getSession(), timeout(6000)])
- *   The timeout resolves with `null` after 6 s, forcing `ready = true`
- *   even if the backend never responds.
- *   A second background re-validation runs after 2 s to sync late responses.
- */
-
 import {
   createContext,
   useContext,

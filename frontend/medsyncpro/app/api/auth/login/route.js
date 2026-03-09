@@ -56,19 +56,29 @@ export async function POST(req) {
       { status: backendRes.status },
     );
 
-    // Forward backend cookies (access_token)
-    const setCookie = backendRes.headers.get("set-cookie");
+    // Forward backend cookies (access_token and refresh_token)
+    const setCookieHeaders = backendRes.headers.getSetCookie
+      ? backendRes.headers.getSetCookie()
+      : [backendRes.headers.get("set-cookie")].filter(Boolean);
 
-    if (setCookie) {
-      const tokenMatch = setCookie.match(/access_token=([^;]+)/);
+    for (const setCookie of setCookieHeaders) {
+      // Parse each Set-Cookie header
+      const tokenMatch = setCookie.match(/(access_token|refresh_token)=([^;]+)/);
+      const pathMatch = setCookie.match(/Path=([^;]+)/i);
+      const maxAgeMatch = setCookie.match(/Max-Age=(\d+)/i);
+      const secureMatch = setCookie.match(/Secure/i);
+      const sameSiteMatch = setCookie.match(/SameSite=(\w+)/i);
 
       if (tokenMatch) {
-        res.cookies.set("access_token", tokenMatch[1], {
+        const tokenName = tokenMatch[1];
+        const tokenValue = tokenMatch[2];
+
+        res.cookies.set(tokenName, tokenValue, {
           httpOnly: true,
-          sameSite: "lax",
-          path: "/",
-          secure: process.env.NODE_ENV === "production",
-          maxAge: 60 * 60 * 24,
+          sameSite: sameSiteMatch ? sameSiteMatch[1].toLowerCase() : "none",
+          path: pathMatch ? pathMatch[1] : tokenName === "refresh_token" ? "/api/auth" : "/",
+          secure: !!secureMatch || process.env.NODE_ENV === "production",
+          maxAge: maxAgeMatch ? parseInt(maxAgeMatch[1]) : 60 * 60 * 24 * 7, // Default 7 days
         });
       }
     }

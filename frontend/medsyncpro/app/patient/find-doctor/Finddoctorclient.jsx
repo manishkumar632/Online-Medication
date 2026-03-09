@@ -205,7 +205,8 @@ export default function FindDoctorClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [step, setStep] = useState("specialty"); // "specialty" | "doctors"
+  // Removed two-step flow — doctors load immediately.
+  // The specialty grid is now a FILTER, not a required first step.
 
   /* ── Specialty state ── */
   const [specialties, setSpecialties] = useState([]);
@@ -213,6 +214,7 @@ export default function FindDoctorClient() {
   const [specialtiesError, setSpecialtiesError] = useState(null);
   const [specialtySearch, setSpecialtySearch] = useState("");
   const [selectedSpecialty, setSelectedSpecialty] = useState(null);
+  const [showSpecialtyGrid, setShowSpecialtyGrid] = useState(false);
 
   /* ── Doctor list state ── */
   const [doctors, setDoctors] = useState([]);
@@ -246,19 +248,9 @@ export default function FindDoctorClient() {
     };
   }, []);
 
-  /* ── Restore from URL ?specialty= on mount ── */
-  useEffect(() => {
-    const sp = searchParams.get("specialty");
-    if (sp) {
-      setSelectedSpecialty({ name: sp });
-      setStep("doctors");
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   /* ── Core fetch function ──
-     API: GET /api/doctors/search?q=<term>&page=0&size=12&sort=name&direction=asc
-     The `q` param is a free-text search across name/specialty/clinic/city.
-     We combine the selected specialty name + any free-text the user typed.
+     Specialty is now OPTIONAL. When null, fetches all doctors.
+     When set, prefixes the specialty name to the query for filtering.
   ── */
   const fetchDoctors = useCallback(
     async ({
@@ -269,16 +261,16 @@ export default function FindDoctorClient() {
       direction = sortDirection,
       append = false,
     } = {}) => {
-      if (!specialty) return;
       setDoctorsLoading(true);
       setDoctorsError(null);
 
-      const combined = query.trim()
-        ? `${specialty.name} ${query.trim()}`
-        : specialty.name;
+      // Build query: specialty name + free-text (either or both can be empty)
+      const combined = [specialty?.name, query.trim()]
+        .filter(Boolean)
+        .join(" ");
 
       const res = await searchDoctorsAction({
-        query: combined,
+        query: combined, // empty string → fetches ALL doctors (no q param)
         page: pageNum,
         size: PAGE_SIZE,
         sort,
@@ -300,21 +292,24 @@ export default function FindDoctorClient() {
     [selectedSpecialty, doctorSearch, sortField, sortDirection],
   );
 
-  /* ── Auto-fetch when entering doctor step ── */
+  /* ── Load ALL doctors on mount (and restore ?specialty= from URL) ── */
   useEffect(() => {
-    if (
-      step === "doctors" &&
-      selectedSpecialty &&
-      doctors.length === 0 &&
-      !doctorsLoading
-    ) {
-      fetchDoctors({ specialty: selectedSpecialty, pageNum: 0 });
+    const sp = searchParams.get("specialty");
+    if (sp) {
+      // URL has a specialty param — restore it and fetch filtered
+      const specialty = { name: sp };
+      setSelectedSpecialty(specialty);
+      fetchDoctors({ specialty, query: "", pageNum: 0 });
+    } else {
+      // No specialty param — load ALL doctors immediately
+      fetchDoctors({ specialty: null, query: "", pageNum: 0 });
     }
-  }, [step, selectedSpecialty]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Re-fetch when sort changes ── */
   useEffect(() => {
-    if (step === "doctors" && selectedSpecialty) {
+    // Only re-fetch if initial load already happened (doctors loaded or tried)
+    if (!doctorsLoading) {
       fetchDoctors({ pageNum: 0, sort: sortField, direction: sortDirection });
     }
   }, [sortField, sortDirection]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -328,31 +323,36 @@ export default function FindDoctorClient() {
     }, 400);
   };
 
-  /* ── Navigation handlers ── */
+  /* ── Specialty filter handlers ── */
   const handleSelectSpecialty = (specialty) => {
-    setSelectedSpecialty(specialty);
-    setStep("doctors");
+    // Toggle off if already selected
+    const next = selectedSpecialty?.name === specialty.name ? null : specialty;
+    setSelectedSpecialty(next);
+    setDoctors([]);
+    setCurrentPage(0);
+    setDoctorSearch("");
+    setShowSpecialtyGrid(false);
+    window.history.replaceState(
+      null,
+      "",
+      next
+        ? `${config.basePath}/patient/find-doctor?specialty=${encodeURIComponent(next.name)}`
+        : `${config.basePath}/patient/find-doctor`,
+    );
+    fetchDoctors({ specialty: next, query: "", pageNum: 0 });
+  };
+
+  const handleClearSpecialty = () => {
+    setSelectedSpecialty(null);
     setDoctors([]);
     setCurrentPage(0);
     setDoctorSearch("");
     window.history.replaceState(
       null,
       "",
-      `${config.basePath}/patient/find-doctor?specialty=${encodeURIComponent(specialty.name)}`,
-    );
-    fetchDoctors({ specialty, query: "", pageNum: 0 });
-  };
-
-  const handleBackToSpecialties = () => {
-    setStep("specialty");
-    setSelectedSpecialty(null);
-    setDoctors([]);
-    setDoctorSearch("");
-    window.history.replaceState(
-      null,
-      "",
       `${config.basePath}/patient/find-doctor`,
     );
+    fetchDoctors({ specialty: null, query: "", pageNum: 0 });
   };
 
   const handleViewProfile = (doc) => router.push(`/patient/doctors/${doc.id}`);
@@ -375,28 +375,28 @@ export default function FindDoctorClient() {
       {/* ── Page header ── */}
       <div className="fd-page-header">
         <div className="fd-page-header-left">
-          {step === "doctors" && (
-            <button className="fd-back-btn" onClick={handleBackToSpecialties}>
-              <I d="M19 12H5M12 5l-7 7 7 7" size={16} /> Back
-            </button>
-          )}
           <div>
-            <h1 className="fd-page-title">
-              {step === "specialty"
-                ? "Find a Doctor"
-                : `${selectedSpecialty?.name} Specialists`}
-            </h1>
+            <h1 className="fd-page-title">Find a Doctor</h1>
             <p className="fd-page-sub">
-              {step === "specialty"
-                ? "Select a specialty to find the right doctor for you"
-                : `${totalDoctors} verified doctor${totalDoctors !== 1 ? "s" : ""} available`}
+              {doctorsLoading && doctors.length === 0
+                ? "Loading verified doctors..."
+                : selectedSpecialty
+                  ? `${totalDoctors} verified ${selectedSpecialty.name} specialist${totalDoctors !== 1 ? "s" : ""}`
+                  : `${totalDoctors} verified doctor${totalDoctors !== 1 ? "s" : ""} available`}
             </p>
           </div>
         </div>
 
-        {/* Specialty search input */}
-        {step === "specialty" && (
-          <div className="fd-search-box">
+        {/* Search + sort controls — always visible */}
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            flexWrap: "wrap",
+            alignItems: "center",
+          }}
+        >
+          <div className="fd-search-box" style={{ minWidth: 220 }}>
             <I
               d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
               size={16}
@@ -404,33 +404,136 @@ export default function FindDoctorClient() {
             />
             <input
               type="text"
-              placeholder="Search specialties..."
-              value={specialtySearch}
-              onChange={(e) => setSpecialtySearch(e.target.value)}
-              autoFocus
+              placeholder="Search by name, clinic, city..."
+              value={doctorSearch}
+              onChange={(e) => handleDoctorSearchChange(e.target.value)}
             />
-            {specialtySearch && (
+            {doctorSearch && (
               <button
                 className="fd-search-clear"
-                onClick={() => setSpecialtySearch("")}
+                onClick={() => handleDoctorSearchChange("")}
               >
                 ✕
               </button>
             )}
           </div>
-        )}
-
-        {/* Doctor search + sort controls */}
-        {step === "doctors" && (
-          <div
+          <select
+            value={sortField}
+            onChange={(e) => setSortField(e.target.value)}
             style={{
-              display: "flex",
-              gap: 10,
-              flexWrap: "wrap",
-              alignItems: "center",
+              padding: "8px 12px",
+              borderRadius: "var(--pd-radius-xs)",
+              border: "1.5px solid var(--pd-gray-200)",
+              fontSize: "0.82rem",
+              fontFamily: "inherit",
+              color: "var(--pd-gray-700)",
+              cursor: "pointer",
+              background: "var(--pd-white)",
             }}
           >
-            <div className="fd-search-box" style={{ minWidth: 220 }}>
+            <option value="name">Sort: Name</option>
+            <option value="consultationFee">Sort: Fee</option>
+            <option value="experienceYears">Sort: Experience</option>
+          </select>
+          <button
+            onClick={() =>
+              setSortDirection((d) => (d === "asc" ? "desc" : "asc"))
+            }
+            style={{
+              padding: "8px 12px",
+              borderRadius: "var(--pd-radius-xs)",
+              border: "1.5px solid var(--pd-gray-200)",
+              fontSize: "0.85rem",
+              fontFamily: "inherit",
+              color: "var(--pd-gray-700)",
+              cursor: "pointer",
+              background: "var(--pd-white)",
+            }}
+          >
+            {sortDirection === "asc" ? "↑ Asc" : "↓ Desc"}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Specialty filter chips ── */}
+      <div style={{ marginBottom: 20 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            flexWrap: "wrap",
+          }}
+        >
+          {/* "Browse by specialty" toggle */}
+          <button
+            onClick={() => setShowSpecialtyGrid((v) => !v)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 14px",
+              borderRadius: "999px",
+              border: "1.5px solid var(--pd-teal)",
+              background: showSpecialtyGrid
+                ? "var(--pd-teal)"
+                : "var(--pd-white)",
+              color: showSpecialtyGrid ? "#fff" : "var(--pd-teal)",
+              fontSize: "0.82rem",
+              fontWeight: 600,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              transition: "all 0.15s",
+            }}
+          >
+            <I d="M4 6h16M4 12h16M4 18h16" size={14} stroke="currentColor" />
+            {showSpecialtyGrid ? "Hide Specialties" : "Browse by Specialty"}
+          </button>
+
+          {/* Active specialty chip */}
+          {selectedSpecialty && (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 12px",
+                borderRadius: "999px",
+                background: "var(--pd-teal-light)",
+                border: "1.5px solid var(--pd-teal)",
+                color: "var(--pd-teal)",
+                fontSize: "0.82rem",
+                fontWeight: 600,
+              }}
+            >
+              {getSpecialtyIcon(selectedSpecialty.name)}{" "}
+              {selectedSpecialty.name}
+              <button
+                onClick={handleClearSpecialty}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "var(--pd-teal)",
+                  fontSize: "0.85rem",
+                  lineHeight: 1,
+                  padding: 0,
+                }}
+                title="Clear filter"
+              >
+                ✕
+              </button>
+            </span>
+          )}
+        </div>
+
+        {/* Specialty grid — collapsible */}
+        {showSpecialtyGrid && (
+          <div style={{ marginTop: 16 }}>
+            <div
+              className="fd-search-box"
+              style={{ marginBottom: 14, maxWidth: 320 }}
+            >
               <I
                 d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
                 size={16}
@@ -438,227 +541,128 @@ export default function FindDoctorClient() {
               />
               <input
                 type="text"
-                placeholder="Search by name, clinic, city..."
-                value={doctorSearch}
-                onChange={(e) => handleDoctorSearchChange(e.target.value)}
+                placeholder="Search specialties..."
+                value={specialtySearch}
+                onChange={(e) => setSpecialtySearch(e.target.value)}
+                autoFocus
               />
-              {doctorSearch && (
+              {specialtySearch && (
                 <button
                   className="fd-search-clear"
-                  onClick={() => handleDoctorSearchChange("")}
+                  onClick={() => setSpecialtySearch("")}
                 >
                   ✕
                 </button>
               )}
             </div>
-            <select
-              value={sortField}
-              onChange={(e) => setSortField(e.target.value)}
-              style={{
-                padding: "8px 12px",
-                borderRadius: "var(--pd-radius-xs)",
-                border: "1.5px solid var(--pd-gray-200)",
-                fontSize: "0.82rem",
-                fontFamily: "inherit",
-                color: "var(--pd-gray-700)",
-                cursor: "pointer",
-                background: "var(--pd-white)",
-              }}
-            >
-              <option value="name">Sort: Name</option>
-              <option value="consultationFee">Sort: Fee</option>
-              <option value="experienceYears">Sort: Experience</option>
-            </select>
-            <button
-              onClick={() =>
-                setSortDirection((d) => (d === "asc" ? "desc" : "asc"))
-              }
-              style={{
-                padding: "8px 12px",
-                borderRadius: "var(--pd-radius-xs)",
-                border: "1.5px solid var(--pd-gray-200)",
-                fontSize: "0.85rem",
-                fontFamily: "inherit",
-                color: "var(--pd-gray-700)",
-                cursor: "pointer",
-                background: "var(--pd-white)",
-              }}
-            >
-              {sortDirection === "asc" ? "↑ Asc" : "↓ Desc"}
-            </button>
+            {specialtiesLoading ? (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  color: "var(--pd-gray-500)",
+                  fontSize: "0.85rem",
+                }}
+              >
+                <div className="fd-spinner" style={{ width: 18, height: 18 }} />{" "}
+                Loading specialties...
+              </div>
+            ) : (
+              <div className="fd-specialty-grid">
+                {(specialtySearch
+                  ? filteredSpecialties
+                  : popularSpecialties
+                ).map((sp) => (
+                  <SpecialtyCard
+                    key={sp.name}
+                    specialty={sp}
+                    selected={selectedSpecialty?.name === sp.name}
+                    onClick={handleSelectSpecialty}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* ════ STEP 1: Specialty grid ════ */}
-      {step === "specialty" && (
-        <div className="fd-specialty-section">
-          {specialtiesLoading && (
-            <div className="fd-loading-state">
-              <div className="fd-spinner" />
-              <p>Loading specialties...</p>
-            </div>
-          )}
-          {specialtiesError && (
-            <div className="fd-error-state">
-              <span className="fd-error-icon">⚠️</span>
-              <p>Could not load specialties: {specialtiesError}</p>
+      {/* ── Doctor list — always rendered ── */}
+      <div className="fd-doctors-section">
+        {doctorsLoading && doctors.length === 0 && (
+          <div className="fd-loading-state">
+            <div className="fd-spinner" />
+            <p>Finding verified doctors...</p>
+          </div>
+        )}
+        {doctorsError && (
+          <div className="fd-error-state">
+            <span className="fd-error-icon">⚠️</span>
+            <p>Could not load doctors: {doctorsError}</p>
+            <button
+              className="fd-retry-btn"
+              onClick={() => fetchDoctors({ pageNum: 0 })}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+        {!doctorsLoading && !doctorsError && doctors.length === 0 && (
+          <div className="fd-empty-state">
+            <span className="fd-empty-icon">👨‍⚕️</span>
+            <p>
+              No verified doctors found
+              {doctorSearch ? ` for "${doctorSearch}"` : ""}
+              {selectedSpecialty ? ` in ${selectedSpecialty.name}` : ""}.
+            </p>
+            {doctorSearch && (
               <button
                 className="fd-retry-btn"
-                onClick={() => window.location.reload()}
+                onClick={() => handleDoctorSearchChange("")}
               >
-                Retry
+                Clear Search
               </button>
+            )}
+            {selectedSpecialty && !doctorSearch && (
+              <button className="fd-retry-btn" onClick={handleClearSpecialty}>
+                Show All Doctors
+              </button>
+            )}
+          </div>
+        )}
+        {doctors.length > 0 && (
+          <>
+            <div className="fd-doctors-grid">
+              {doctors.map((doc) => (
+                <DoctorCard
+                  key={doc.id}
+                  doctor={doc}
+                  onViewProfile={handleViewProfile}
+                  onBookAppointment={handleBookAppointment}
+                />
+              ))}
             </div>
-          )}
-          {!specialtiesLoading && !specialtiesError && (
-            <>
-              {!specialtySearch && popularSpecialties.length > 0 && (
-                <div className="fd-section-block">
-                  <h2 className="fd-section-label">
-                    <I
-                      d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
-                      size={14}
-                      stroke="var(--pd-orange)"
-                      fill="var(--pd-orange)"
-                    />
-                    Popular Specialties
-                  </h2>
-                  <div className="fd-specialty-grid">
-                    {popularSpecialties.map((sp) => (
-                      <SpecialtyCard
-                        key={sp.name}
-                        specialty={sp}
-                        selected={selectedSpecialty?.name === sp.name}
-                        onClick={handleSelectSpecialty}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-              {filteredSpecialties.length > 0 && (
-                <div className="fd-section-block">
-                  <h2 className="fd-section-label">
-                    <I
-                      d="M4 6h16M4 12h16M4 18h16"
-                      size={14}
-                      stroke="var(--pd-teal)"
-                    />
-                    {specialtySearch
-                      ? `Results for "${specialtySearch}"`
-                      : "All Specialties"}
-                  </h2>
-                  <div className="fd-specialty-grid">
-                    {filteredSpecialties.map((sp) => (
-                      <SpecialtyCard
-                        key={sp.name}
-                        specialty={sp}
-                        selected={selectedSpecialty?.name === sp.name}
-                        onClick={handleSelectSpecialty}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-              {filteredSpecialties.length === 0 && (
-                <div className="fd-empty-state">
-                  <span className="fd-empty-icon">🔍</span>
-                  <p>
-                    No specialties found for <strong>{specialtySearch}</strong>
-                  </p>
-                  <button
-                    className="fd-retry-btn"
-                    onClick={() => setSpecialtySearch("")}
-                  >
-                    Clear Search
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
-
-      {/* ════ STEP 2: Doctor list ════ */}
-      {step === "doctors" && (
-        <div className="fd-doctors-section">
-          {doctorsLoading && doctors.length === 0 && (
-            <div className="fd-loading-state">
-              <div className="fd-spinner" />
-              <p>Finding verified doctors...</p>
-            </div>
-          )}
-          {doctorsError && (
-            <div className="fd-error-state">
-              <span className="fd-error-icon">⚠️</span>
-              <p>Could not load doctors: {doctorsError}</p>
-              <button
-                className="fd-retry-btn"
-                onClick={() => fetchDoctors({ pageNum: 0 })}
+            {doctorsLoading && (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  padding: 20,
+                }}
               >
-                Retry
-              </button>
-            </div>
-          )}
-          {!doctorsLoading && !doctorsError && doctors.length === 0 && (
-            <div className="fd-empty-state">
-              <span className="fd-empty-icon">👨‍⚕️</span>
-              <p>
-                No verified doctors found
-                {doctorSearch ? ` for "${doctorSearch}"` : ""} in{" "}
-                <strong>{selectedSpecialty?.name}</strong>.
-              </p>
-              {doctorSearch ? (
-                <button
-                  className="fd-retry-btn"
-                  onClick={() => handleDoctorSearchChange("")}
-                >
-                  Clear Search
-                </button>
-              ) : (
-                <button
-                  className="fd-retry-btn"
-                  onClick={handleBackToSpecialties}
-                >
-                  Try another specialty
-                </button>
-              )}
-            </div>
-          )}
-          {doctors.length > 0 && (
-            <>
-              <div className="fd-doctors-grid">
-                {doctors.map((doc) => (
-                  <DoctorCard
-                    key={doc.id}
-                    doctor={doc}
-                    onViewProfile={handleViewProfile}
-                    onBookAppointment={handleBookAppointment}
-                  />
-                ))}
+                <div className="fd-spinner" />
               </div>
-              {doctorsLoading && (
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "center",
-                    padding: 20,
-                  }}
-                >
-                  <div className="fd-spinner" />
-                </div>
-              )}
-              {hasMore && !doctorsLoading && (
-                <div className="fd-load-more">
-                  <button className="fd-load-more-btn" onClick={handleLoadMore}>
-                    Load More Doctors
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
+            )}
+            {hasMore && !doctorsLoading && (
+              <div className="fd-load-more">
+                <button className="fd-load-more-btn" onClick={handleLoadMore}>
+                  Load More Doctors
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </>
   );
 }

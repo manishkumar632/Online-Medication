@@ -3,19 +3,6 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth, getRedirectPath } from "../context/AuthContext";
 
-/**
- * Client-side route guard for protected pages.
- * 
- * Usage:
- *   <RouteGuard allowedRoles={["DOCTOR"]}>
- *     {children}
- *   </RouteGuard>
- * 
- * Behavior:
- * - If user is not logged in → redirect to /auth/login
- * - If user role is not in allowedRoles → redirect to their correct dashboard
- * - Shows nothing while checking (prevents flash of protected content)
- */
 export default function RouteGuard({ children, allowedRoles = [] }) {
     const { user, ready, isLoggedIn } = useAuth();
     const router = useRouter();

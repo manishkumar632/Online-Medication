@@ -36,7 +36,7 @@ const PAGE_SIZE = 5;
 const tabs = [
   { key: "patients", label: "Patients", role: "PATIENT" },
   { key: "doctors", label: "Doctors", role: "DOCTOR" },
-  { key: "pharmacists", label: "Pharmacists", role: "PHARMACIST" },
+  { key: "pharmacists", label: "Pharmacists", role: "PHARMACY" },
 ];
 
 export default function RoleManagement() {

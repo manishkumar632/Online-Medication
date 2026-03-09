@@ -1,14 +1,5 @@
 "use client";
 
-/**
- * NotificationContext.jsx
- *
- * SSE via /api/notifications/stream  (Next.js proxy route — same origin,
- * no cookie domain issue). All other calls go through server actions.
- *
- * The browser never talks to Spring Boot directly.
- */
-
 import React, {
   createContext,
   useContext,
@@ -28,6 +19,7 @@ import {
   fetchNotificationsAction,
   fetchUnreadCountAction,
   markAsReadAction,
+  markAllAsReadAction,
   registerFcmTokenAction,
 } from "@/actions/notificationAction";
 
@@ -37,10 +29,12 @@ export const NotificationProvider = ({ children }) => {
   const { user, validateSession } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+
   const sseRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
+  const messageListenersRef = useRef(new Set());
 
-  // ── Data fetches (via server actions) ──────────────────────────────────────
+  // ── Notification data fetches ─────────────────────────────────────────────
 
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
@@ -57,12 +51,7 @@ export const NotificationProvider = ({ children }) => {
     if (result.success) setUnreadCount(result.count);
   }, [user]);
 
-  // ── SSE connection (via Next.js proxy route) ────────────────────────────────
-  //
-  // Connects to /api/notifications/stream — a Next.js Route Handler on the
-  // same origin (localhost:3000). The route handler reads the HttpOnly cookie
-  // server-side and opens the real Spring Boot SSE connection from the server.
-  // The browser never touches localhost:8080 directly.
+  // ── SSE connection ────────────────────────────────────────────────────────
 
   const connectSSE = useCallback(() => {
     if (!user) return;
@@ -77,7 +66,6 @@ export const NotificationProvider = ({ children }) => {
     }
 
     try {
-      // Same-origin URL — no CORS, no cookie domain issue.
       const eventSource = new EventSource(
         `${config.basePath}/api/notifications/stream`,
       );
@@ -92,13 +80,26 @@ export const NotificationProvider = ({ children }) => {
           toast.info(data.title, { description: data.message });
           fetchNotifications();
           fetchUnreadCount();
-
-          // If a doctor/pharmacist was approved/rejected, re-validate their session.
           if (data.type === "VERIFICATION_DECISION") {
             validateSession?.();
           }
         } catch (e) {
           console.error("[SSE] Failed to parse notification payload", e);
+        }
+      });
+
+      eventSource.addEventListener("new_message", (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          messageListenersRef.current.forEach((cb) => {
+            try {
+              cb(data);
+            } catch (err) {
+              console.error("[SSE] Message listener error", err);
+            }
+          });
+        } catch (e) {
+          console.error("[SSE] Failed to parse new_message payload", e);
         }
       });
 
@@ -123,7 +124,7 @@ export const NotificationProvider = ({ children }) => {
     }
   }, [user, fetchNotifications, fetchUnreadCount, validateSession]);
 
-  // ── Setup on login / teardown on logout ────────────────────────────────────
+  // ── Setup on login / teardown on logout ───────────────────────────────────
 
   useEffect(() => {
     if (!user) return;
@@ -165,7 +166,7 @@ export const NotificationProvider = ({ children }) => {
     subscribe();
   }, [user, fetchNotifications]);
 
-  // ── Mark as read (optimistic) ─────────────────────────────────────────────
+  // ── Mark one as read (optimistic) ─────────────────────────────────────────
 
   const markAsRead = useCallback(
     async (id) => {
@@ -173,12 +174,29 @@ export const NotificationProvider = ({ children }) => {
         prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
-
       const result = await markAsReadAction(id);
-      if (!result.success) fetchNotifications(); // revert on failure
+      if (!result.success) fetchNotifications();
     },
     [fetchNotifications],
   );
+
+  // ── Mark ALL as read (optimistic) ─────────────────────────────────────────
+
+  const markAllRead = useCallback(async () => {
+    // Optimistic update — zero the badge and flip every notification locally
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    setUnreadCount(0);
+    // Server sync — fallback to re-fetch on failure
+    const result = await markAllAsReadAction(); // ← FIX: direct call, no dynamic import
+    if (!result.success) fetchNotifications();
+  }, [fetchNotifications]);
+
+  // ── Message subscription API ──────────────────────────────────────────────
+
+  const subscribeToMessages = useCallback((callback) => {
+    messageListenersRef.current.add(callback);
+    return () => messageListenersRef.current.delete(callback);
+  }, []);
 
   return (
     <NotificationContext.Provider
@@ -188,6 +206,8 @@ export const NotificationProvider = ({ children }) => {
         fetchNotifications,
         fetchUnreadCount,
         markAsRead,
+        markAllRead,
+        subscribeToMessages,
       }}
     >
       {children}

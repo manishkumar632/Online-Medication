@@ -39,6 +39,21 @@ export async function updateAppointmentStatus(id, action, body = null) {
 }
 
 /**
+ * Reschedule an appointment (doctor action).
+ */
+export async function rescheduleDoctorAppointment(id, payload) {
+  try {
+    const res = await serverApiClient(`/doctor/appointments/${id}/reschedule`, {
+      method: "PATCH",
+      body: payload,
+    });
+    return { success: true, data: res.data?.data ?? res.data };
+  } catch (err) {
+    return { success: false, message: err.message };
+  }
+}
+
+/**
  * Save doctor notes for an appointment.
  */
 export async function saveAppointmentNotes(id, data) {

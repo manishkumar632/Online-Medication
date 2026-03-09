@@ -25,12 +25,46 @@ function withSecurityHeaders(response) {
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 
-export function proxy(req) {
+export async function proxy(req) {
   const { pathname } = req.nextUrl;
   console.log(`[Middleware] ${req.nextUrl.pathname}`);
 
-  const token = req.cookies.get("access_token")?.value;
-  const role = req.cookies.get("user_role")?.value;
+  let token = req.cookies.get("access_token")?.value;
+  const refreshToken = req.cookies.get("refresh_token")?.value;
+  let role = req.cookies.get("user_role")?.value;
+
+  let response = NextResponse.next();
+
+  if (!token && refreshToken) {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api";
+      const refreshRes = await fetch(`${apiUrl}/auth/refresh`, {
+        method: "POST",
+        headers: {
+          Cookie: `refresh_token=${refreshToken}`,
+          Accept: "application/json",
+        },
+      });
+
+      if (refreshRes.ok) {
+        const setCookies = refreshRes.headers.getSetCookie();
+        for (const cookieStr of setCookies) {
+          response.headers.append("Set-Cookie", cookieStr);
+        }
+
+        // Update the 'token' variable so route guarding doesn't kick us out
+        const newAccessStr = setCookies.find((c) => c.startsWith("access_token="));
+        if (newAccessStr) {
+          token = newAccessStr.split(";")[0].split("=")[1];
+          req.cookies.set("access_token", token);
+          // Pass the new cookie forward to the server components rendering the page
+          response.headers.set("x-middleware-request-cookie", req.cookies.toString());
+        }
+      }
+    } catch (err) {
+      console.error("[Middleware] Silent refresh failed:", err);
+    }
+  }
 
   console.log(`  → Auth token: ${token ? "present" : "absent"}, role: ${role}`);
 
@@ -52,7 +86,13 @@ export function proxy(req) {
     const url = req.nextUrl.clone();
     url.pathname = (role && ROLE_ROUTES[role]) ?? ROUTES.HOME;
     url.searchParams.delete("redirect");
-    return NextResponse.redirect(url);
+    const redirectRes = NextResponse.redirect(url);
+    // If we refreshed cookies, carry them over to the redirect response
+    response.headers.forEach((val, key) => {
+      if (key.toLowerCase() === "set-cookie")
+        redirectRes.headers.append(key, val);
+    });
+    return redirectRes;
   }
 
   // 3. Authenticated user on the wrong role's route → redirect to own dashboard.
@@ -65,12 +105,18 @@ export function proxy(req) {
     if (!hasAccess) {
       const url = req.nextUrl.clone();
       url.pathname = ROLE_ROUTES[role] ?? ROUTES.HOME;
-      return NextResponse.redirect(url);
+      const redirectRes = NextResponse.redirect(url);
+      // If we refreshed cookies, carry them over to the redirect response
+      response.headers.forEach((val, key) => {
+        if (key.toLowerCase() === "set-cookie")
+          redirectRes.headers.append(key, val);
+      });
+      return redirectRes;
     }
   }
 
   // 4. Allow through — attach security headers.
-  return withSecurityHeaders(NextResponse.next());
+  return withSecurityHeaders(response);
 }
 
 // ─── Matcher ──────────────────────────────────────────────────────────────────

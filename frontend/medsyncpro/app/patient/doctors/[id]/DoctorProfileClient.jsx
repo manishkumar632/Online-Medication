@@ -229,7 +229,17 @@ export default function DoctorProfileClient() {
     const name = doctor.name || doctor.fullName || "Doctor";
     const rating = doctor.averageRating ?? doctor.rating ?? null;
     const experience = doctor.experienceYears ?? doctor.yearsOfExperience ?? null;
-    const qualifications = doctor.qualifications || doctor.education || [];
+    let rawQuals = doctor.qualifications || doctor.education;
+    let qualifications = [];
+    if (Array.isArray(rawQuals)) {
+      qualifications = rawQuals;
+    } else if (typeof rawQuals === "string") {
+      // Convert comma-separated string from backend into an array
+      qualifications = rawQuals
+        .split(",")
+        .map((q) => q.trim())
+        .filter(Boolean);
+    }
     const publicDocs = (doctor.documents || []).filter(d => d.isPublic !== false);
 
     const tabs = [

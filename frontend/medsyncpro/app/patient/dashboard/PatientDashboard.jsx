@@ -1,7 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useRouter } from "next/navigation";
+import {
+  fetchAdherenceSummaryAction,
+  fetchHealthTrackerEntriesAction,
+} from "@/actions/medicationAction";
 import "../patient-dashboard.css";
 import FindDoctorClient from "../find-doctor/Finddoctorclient";
 import PatientSidebarLayout from "../components/PatientSidebarLayout";
@@ -360,6 +364,8 @@ export default function PatientDashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeNav, setActiveNav] = useState("dashboard");
   const [vitalTab, setVitalTab] = useState("bp");
+  const [adherencePct, setAdherencePct] = useState(87);
+  const [healthEntries, setHealthEntries] = useState([]);
 
   const firstName = user?.name?.split(" ")[0] || "Patient";
   const initials = user?.name
@@ -370,6 +376,28 @@ export default function PatientDashboard() {
         .toUpperCase()
         .slice(0, 2)
     : "P";
+
+  useEffect(() => {
+    const loadPatientHealth = async () => {
+      const [adherence, entries] = await Promise.all([
+        fetchAdherenceSummaryAction(30),
+        fetchHealthTrackerEntriesAction(),
+      ]);
+
+      if (adherence?.success && adherence?.data?.adherencePercentage != null) {
+        const pct = Number(adherence.data.adherencePercentage);
+        if (!Number.isNaN(pct)) {
+          setAdherencePct(Math.max(0, Math.min(100, Math.round(pct))));
+        }
+      }
+
+      if (entries?.success && Array.isArray(entries.data)) {
+        setHealthEntries(entries.data);
+      }
+    };
+
+    loadPatientHealth();
+  }, []);
 
   const formatApptDate = (dateStr) => {
     const d = new Date(dateStr);
@@ -527,7 +555,7 @@ export default function PatientDashboard() {
         {/* Greeting */}
         <div className="pd-greeting">
           <h1>Hello, {firstName} 👋</h1>
-          <p>Here's your health overview for today — stay on track!</p>
+          <p>Here&apos;s your health overview for today — stay on track!</p>
         </div>
 
         {/* Reminder Banner */}
@@ -830,10 +858,13 @@ export default function PatientDashboard() {
               <div className="pd-adherence">
                 <div className="pd-adherence-label">
                   <span>💊 Medication Adherence</span>
-                  <span>87%</span>
+                  <span>{adherencePct}%</span>
                 </div>
                 <div className="pd-adherence-bar">
-                  <div className="pd-adherence-fill" style={{ width: "87%" }} />
+                  <div
+                    className="pd-adherence-fill"
+                    style={{ width: `${adherencePct}%` }}
+                  />
                 </div>
               </div>
             </div>
@@ -855,7 +886,11 @@ export default function PatientDashboard() {
                 </svg>
                 Health Vitals
               </h3>
-              <span className="card-link">+ Add Vitals</span>
+              <span className="card-link">
+                {healthEntries.length > 0
+                  ? `${healthEntries.length} entries`
+                  : "+ Add Vitals"}
+              </span>
             </div>
             <div className="pd-card-body">
               <div className="pd-vitals-tabs">

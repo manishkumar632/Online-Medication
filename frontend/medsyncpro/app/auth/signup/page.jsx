@@ -32,8 +32,8 @@ const ROLES = [
     desc: "Manage patients & prescriptions",
   },
   {
-    value: "PHARMACIST",
-    label: "Pharmacist",
+    value: "PHARMACY",
+    label: "Pharmacy",
     icon: "💊",
     desc: "Fulfill & manage orders",
   },

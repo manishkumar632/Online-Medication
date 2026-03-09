@@ -4,16 +4,15 @@ import { serverApiClient } from "@/lib/api-client";
 
 /**
  * Fetch all verified doctors and group by specialty to build the specialty grid.
- * @returns {{ success: boolean, data?: { name: string, doctorCount: number }[], message?: string }}
  */
 export async function fetchSpecialtiesAction() {
   try {
-    console.log("[fetchSpecialtiesAction] REQUEST: GET /doctors/search?size=200&sort=name&direction=asc");
     const body = await serverApiClient(
       "/doctors/search?size=200&sort=name&direction=asc",
     );
-    console.log("[fetchSpecialtiesAction] RESPONSE_RAW:", JSON.stringify(body).slice(0, 500) + "...");
-    const doctors = body?.data?.content ?? [];
+
+    // FIX: Added .data.data to correctly access the Spring Boot payload
+    const doctors = body?.data?.data?.content ?? [];
 
     const map = {};
     for (const d of doctors) {
@@ -35,9 +34,6 @@ export async function fetchSpecialtiesAction() {
 /**
  * Search doctors. Backend searches across name / email / phone / specialty / clinic / city
  * using a single `q` param.
- *
- * @param {{ query?: string, page?: number, size?: number, sort?: string, direction?: string }}
- * @returns {{ success: boolean, data?: { content, totalElements, totalPages, number }, message?: string }}
  */
 export async function searchDoctorsAction({
   query,
@@ -51,12 +47,10 @@ export async function searchDoctorsAction({
     if (query?.trim()) params.set("q", query.trim());
 
     const endpoint = `/doctors/search?${params.toString()}`;
-    console.log(`[searchDoctorsAction] REQUEST: GET ${endpoint} with options:`, { query, page, size, sort, direction });
-    
     const body = await serverApiClient(endpoint);
-    console.log(`[searchDoctorsAction] RESPONSE (${endpoint}):`, JSON.stringify(body).slice(0, 500) + "...");
-    
-    const pd = body?.data ?? {};
+
+    // FIX: Added .data.data to correctly access the Spring Boot payload
+    const pd = body?.data?.data ?? {};
 
     return {
       success: true,

@@ -3,8 +3,7 @@ import { cookies } from "next/headers";
 import { config } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
-export const runtime = "nodejs"; // Edge runtime doesn't support long-lived streams well
-
+export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
   const cookieStore = await cookies();
   const token = cookieStore.get("access_token")?.value;

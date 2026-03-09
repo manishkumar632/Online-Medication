@@ -1,6 +1,7 @@
 "use client";
 import "./patients.css";
 import { useState, useMemo, useRef, useEffect } from "react";
+import { fetchUsersAction, suspendUserAction } from "@/actions/adminAction";
 import {
   Search,
   ChevronLeft,
@@ -40,7 +41,7 @@ import {
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════
-   MOCK DATA
+   CONFIG
    ═══════════════════════════════════════════════════════ */
 const STATUS_MAP = {
   active: { label: "Active", color: "#10b981", bg: "rgba(16,185,129,0.1)" },
@@ -68,351 +69,140 @@ const RISK_MAP = {
   high: { label: "High Risk", color: "#ef4444", bg: "rgba(239,68,68,0.08)" },
 };
 
-const MOCK_PATIENTS = [
-  {
-    id: "pt1",
-    name: "Emma Johnson",
-    email: "emma.j@email.com",
-    phone: "+1 (555) 101-2020",
-    age: 34,
-    gender: "Female",
-    status: "active",
-    risk: "normal",
-    joined: "2024-03-15",
-    lastActive: "2 hours ago",
-    appointments: 12,
-    prescriptions: 8,
-    messages: 5,
-    lastLogin: "Today",
-    engagement: "High",
-    emergencyContact: "John Johnson — (555) 999-1234",
-    address: "45 Oak Lane, Brooklyn, NY 11201",
-    chronicConditions: "None",
-    recentVisits: ["Cardiology — Feb 20", "General — Jan 15"],
-    latestRx: ["Lisinopril 10mg", "Vitamin D 2000IU"],
-    followUp: "None pending",
-    notes: "",
-    riskFlag: false,
-  },
-  {
-    id: "pt2",
-    name: "Liam Patel",
-    email: "liam.p@email.com",
-    phone: "+1 (555) 202-3030",
-    age: 52,
-    gender: "Male",
-    status: "active",
-    risk: "flagged",
-    joined: "2023-11-10",
-    lastActive: "1 day ago",
-    appointments: 28,
-    prescriptions: 15,
-    messages: 12,
-    lastLogin: "Yesterday",
-    engagement: "High",
-    emergencyContact: "Anita Patel — (555) 888-2345",
-    address: "312 Maple Dr, Austin, TX 78701",
-    chronicConditions: "Hypertension, Type 2 Diabetes",
-    recentVisits: ["Endocrinology — Feb 18", "Cardiology — Feb 5"],
-    latestRx: ["Metformin 500mg", "Amlodipine 5mg", "Insulin glargine"],
-    followUp: "Cardiology — Mar 5",
-    notes: "Missed 2 consecutive follow-ups. Flagged for outreach.",
-    riskFlag: true,
-  },
-  {
-    id: "pt3",
-    name: "Sofia Rodriguez",
-    email: "sofia.r@email.com",
-    phone: "+1 (555) 303-4040",
-    age: 28,
-    gender: "Female",
-    status: "active",
-    risk: "normal",
-    joined: "2024-06-20",
-    lastActive: "Just now",
-    appointments: 6,
-    prescriptions: 3,
-    messages: 2,
-    lastLogin: "Today",
-    engagement: "Medium",
-    emergencyContact: "Carlos Rodriguez — (555) 777-3456",
-    address: "88 Pine St, San Francisco, CA 94102",
-    chronicConditions: "Asthma (mild)",
-    recentVisits: ["Pulmonology — Feb 10", "General — Dec 12"],
-    latestRx: ["Albuterol inhaler"],
-    followUp: "Pulmonology — Apr 1",
-    notes: "",
-    riskFlag: false,
-  },
-  {
-    id: "pt4",
-    name: "James Chen",
-    email: "james.c@email.com",
-    phone: "+1 (555) 404-5050",
-    age: 67,
-    gender: "Male",
-    status: "flagged",
-    risk: "high",
-    joined: "2023-08-05",
-    lastActive: "3 days ago",
-    appointments: 42,
-    prescriptions: 22,
-    messages: 18,
-    lastLogin: "3 days ago",
-    engagement: "Low",
-    emergencyContact: "Linda Chen — (555) 666-4567",
-    address: "200 Elm Rd, Portland, OR 97201",
-    chronicConditions: "COPD, Heart failure, CKD Stage 3",
-    recentVisits: [
-      "Nephrology — Feb 22",
-      "Cardiology — Feb 12",
-      "Pulmonology — Feb 1",
-    ],
-    latestRx: ["Furosemide 40mg", "Carvedilol 25mg", "Albuterol/Ipratropium"],
-    followUp: "Cardiology — Feb 28 (OVERDUE)",
-    notes:
-      "Multiple chronic conditions. Declining engagement. Needs case manager assignment.",
-    riskFlag: true,
-  },
-  {
-    id: "pt5",
-    name: "Aisha Khan",
-    email: "aisha.k@email.com",
-    phone: "+1 (555) 505-6060",
-    age: 41,
-    gender: "Female",
-    status: "active",
-    risk: "normal",
-    joined: "2024-01-12",
-    lastActive: "5 hours ago",
-    appointments: 9,
-    prescriptions: 6,
-    messages: 4,
-    lastLogin: "Today",
-    engagement: "High",
-    emergencyContact: "Omar Khan — (555) 555-5678",
-    address: "75 River Walk, Chicago, IL 60601",
-    chronicConditions: "Hypothyroidism",
-    recentVisits: ["Endocrinology — Feb 15", "General — Jan 20"],
-    latestRx: ["Levothyroxine 75mcg"],
-    followUp: "Endocrinology — May 15",
-    notes: "",
-    riskFlag: false,
-  },
-  {
-    id: "pt6",
-    name: "Marcus Williams",
-    email: "marcus.w@email.com",
-    phone: "+1 (555) 606-7070",
-    age: 45,
-    gender: "Male",
-    status: "suspended",
-    risk: "high",
-    joined: "2024-02-28",
-    lastActive: "2 weeks ago",
-    appointments: 3,
-    prescriptions: 1,
-    messages: 0,
-    lastLogin: "2 weeks ago",
-    engagement: "None",
-    emergencyContact: "N/A",
-    address: "Unknown",
-    chronicConditions: "N/A",
-    recentVisits: ["General — Feb 1"],
-    latestRx: ["N/A"],
-    followUp: "None",
-    notes:
-      "Account suspended: suspected fraudulent activity. Under investigation since Feb 15.",
-    riskFlag: true,
-  },
-  {
-    id: "pt7",
-    name: "Olivia Brown",
-    email: "olivia.b@email.com",
-    phone: "+1 (555) 707-8080",
-    age: 23,
-    gender: "Female",
-    status: "active",
-    risk: "normal",
-    joined: "2024-09-10",
-    lastActive: "1 hour ago",
-    appointments: 4,
-    prescriptions: 2,
-    messages: 7,
-    lastLogin: "Today",
-    engagement: "Medium",
-    emergencyContact: "Sarah Brown — (555) 444-6789",
-    address: "320 College Ave, Boston, MA 02101",
-    chronicConditions: "None",
-    recentVisits: ["General — Feb 8", "Dermatology — Jan 25"],
-    latestRx: ["Tretinoin 0.025%", "Doxycycline 100mg"],
-    followUp: "Dermatology — Mar 25",
-    notes: "",
-    riskFlag: false,
-  },
-  {
-    id: "pt8",
-    name: "David Kim",
-    email: "david.k@email.com",
-    phone: "+1 (555) 808-9090",
-    age: 58,
-    gender: "Male",
-    status: "inactive",
-    risk: "normal",
-    joined: "2023-06-15",
-    lastActive: "2 months ago",
-    appointments: 15,
-    prescriptions: 10,
-    messages: 3,
-    lastLogin: "Dec 20, 2024",
-    engagement: "None",
-    emergencyContact: "Susan Kim — (555) 333-7890",
-    address: "450 Summit Blvd, Denver, CO 80201",
-    chronicConditions: "Osteoarthritis",
-    recentVisits: ["Orthopedics — Nov 10"],
-    latestRx: ["Naproxen 500mg", "Glucosamine"],
-    followUp: "Orthopedics — OVERDUE",
-    notes: "Inactive for 2 months. Attempted contact twice.",
-    riskFlag: false,
-  },
-  {
-    id: "pt9",
-    name: "Isabella Martinez",
-    email: "isabella.m@email.com",
-    phone: "+1 (555) 909-0101",
-    age: 31,
-    gender: "Female",
-    status: "under_review",
-    risk: "flagged",
-    joined: "2024-07-22",
-    lastActive: "4 days ago",
-    appointments: 7,
-    prescriptions: 11,
-    messages: 1,
-    lastLogin: "4 days ago",
-    engagement: "Low",
-    emergencyContact: "Miguel Martinez — (555) 222-8901",
-    address: "180 Sunset Dr, Miami, FL 33101",
-    chronicConditions: "Anxiety, Depression",
-    recentVisits: ["Psychiatry — Feb 20", "General — Feb 5"],
-    latestRx: ["Sertraline 100mg", "Alprazolam 0.5mg", "Trazodone 50mg"],
-    followUp: "Psychiatry — Mar 6",
-    notes:
-      "Flagged: unusual prescription request pattern. Under clinical review.",
-    riskFlag: true,
-  },
-  {
-    id: "pt10",
-    name: "Noah Taylor",
-    email: "noah.t@email.com",
-    phone: "+1 (555) 010-1212",
-    age: 39,
-    gender: "Male",
-    status: "active",
-    risk: "normal",
-    joined: "2024-04-18",
-    lastActive: "30 min ago",
-    appointments: 8,
-    prescriptions: 4,
-    messages: 6,
-    lastLogin: "Today",
-    engagement: "High",
-    emergencyContact: "Emily Taylor — (555) 111-9012",
-    address: "95 Market St, Seattle, WA 98101",
-    chronicConditions: "None",
-    recentVisits: ["General — Feb 22", "ENT — Jan 30"],
-    latestRx: ["Amoxicillin 500mg"],
-    followUp: "None pending",
-    notes: "",
-    riskFlag: false,
-  },
-];
-
-const FLAGGED_PATIENTS = MOCK_PATIENTS.filter((p) => p.riskFlag);
 const PAGE_SIZE = 8;
 
 /* ═══════════════════════════════════════════════════════ */
 export default function PatientsPage() {
+  const [patients, setPatients] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [riskFilter, setRiskFilter] = useState("all");
   const [sortBy, setSortBy] = useState("joined");
   const [sortDir, setSortDir] = useState("desc");
-  const [currentPage, setCurrentPage] = useState(1);
+
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
+
   const [selected, setSelected] = useState(new Set());
   const [drawerDoc, setDrawerDoc] = useState(null);
-  const [patients, setPatients] = useState(MOCK_PATIENTS);
   const [adminNote, setAdminNote] = useState("");
   const [confirmAction, setConfirmAction] = useState(null);
 
+  // Fetch Real Data from Backend
+  useEffect(() => {
+    const loadPatients = async () => {
+      setLoading(true);
+      try {
+        const result = await fetchUsersAction({
+          role: "PATIENT",
+          page: page,
+          size: PAGE_SIZE,
+          search: search,
+        });
+
+        if (result.success) {
+          setPatients(result.content || []);
+          setTotalPages(result.totalPages || 1);
+          setTotalElements(result.totalElements || 0);
+        }
+      } catch (error) {
+        console.error("Failed to load patients:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const delayDebounceFn = setTimeout(() => {
+      loadPatients();
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [page, search]);
+
+  // Client-side visual filtering for status & risk (since backend might not support it yet)
   const filtered = useMemo(() => {
     let list = [...patients];
-    if (search) {
-      const q = search.toLowerCase();
-      list = list.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.email.toLowerCase().includes(q) ||
-          p.phone.includes(q),
-      );
-    }
     if (statusFilter !== "all")
-      list = list.filter((p) => p.status === statusFilter);
-    if (riskFilter !== "all") list = list.filter((p) => p.risk === riskFilter);
-    list.sort((a, b) => {
-      let c = 0;
-      if (sortBy === "joined") c = new Date(a.joined) - new Date(b.joined);
-      else if (sortBy === "name") c = a.name.localeCompare(b.name);
-      else if (sortBy === "appointments") c = a.appointments - b.appointments;
-      else if (sortBy === "age") c = a.age - b.age;
-      return sortDir === "desc" ? -c : c;
-    });
+      list = list.filter(
+        (p) => (p.status?.toLowerCase() || "active") === statusFilter,
+      );
+    if (riskFilter !== "all")
+      list = list.filter(
+        (p) => (p.risk?.toLowerCase() || "normal") === riskFilter,
+      );
     return list;
-  }, [patients, search, statusFilter, riskFilter, sortBy, sortDir]);
+  }, [patients, statusFilter, riskFilter]);
 
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated = filtered.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE,
-  );
-  const stats = useMemo(
-    () => ({
-      total: patients.length,
-      active: patients.filter((p) => p.status === "active").length,
-      flagged: FLAGGED_PATIENTS.length,
-      suspended: patients.filter((p) => p.status === "suspended").length,
-    }),
+  const flaggedPatients = useMemo(
+    () => patients.filter((p) => p.riskFlag),
     [patients],
   );
 
-  const updatePatient = (id, u) => {
-    setPatients((prev) => prev.map((p) => (p.id === id ? { ...p, ...u } : p)));
-    if (drawerDoc?.id === id) setDrawerDoc((prev) => ({ ...prev, ...u }));
+  const stats = useMemo(
+    () => ({
+      total: totalElements,
+      active: patients.filter(
+        (p) => (p.status?.toLowerCase() || "active") === "active",
+      ).length,
+      flagged: flaggedPatients.length,
+      suspended: patients.filter((p) => p.status?.toLowerCase() === "suspended")
+        .length,
+    }),
+    [totalElements, patients, flaggedPatients],
+  );
+
+  const updatePatient = (id, updates) => {
+    setPatients((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+    );
+    if (drawerDoc?.id === id) setDrawerDoc((prev) => ({ ...prev, ...updates }));
   };
-  const handleAction = (type, doc) => setConfirmAction({ type, doctor: doc });
-  const confirmActionHandler = () => {
+
+  const handleAction = (type, doc) => setConfirmAction({ type, patient: doc });
+
+  const confirmActionHandler = async () => {
     if (!confirmAction) return;
-    const { type, doctor } = confirmAction;
-    const m = {
-      suspend: { status: "suspended" },
-      activate: { status: "active", riskFlag: false },
-      flag: { status: "flagged", risk: "flagged", riskFlag: true },
-      unflag: { risk: "normal", riskFlag: false },
-      review: { status: "under_review" },
-    };
-    if (m[type]) updatePatient(doctor.id, m[type]);
+    const { type, patient } = confirmAction;
+
+    try {
+      if (type === "suspend") {
+        await suspendUserAction(patient.id);
+        updatePatient(patient.id, { status: "suspended" });
+      } else if (type === "activate") {
+        updatePatient(patient.id, { status: "active", riskFlag: false });
+      } else if (type === "flag") {
+        updatePatient(patient.id, {
+          status: "flagged",
+          risk: "flagged",
+          riskFlag: true,
+        });
+      } else if (type === "unflag") {
+        updatePatient(patient.id, { risk: "normal", riskFlag: false });
+      } else if (type === "review") {
+        updatePatient(patient.id, { status: "under_review" });
+      }
+    } catch (err) {
+      console.error("Action failed:", err);
+    }
+
     setConfirmAction(null);
   };
+
   const bulkAction = (type) => {
-    selected.forEach((id) => {
-      const m = {
-        suspend: { status: "suspended" },
-        activate: { status: "active" },
-      };
-      if (m[type]) updatePatient(id, m[type]);
+    selected.forEach(async (id) => {
+      if (type === "suspend") {
+        await suspendUserAction(id);
+        updatePatient(id, { status: "suspended" });
+      } else if (type === "activate") {
+        updatePatient(id, { status: "active" });
+      }
     });
     setSelected(new Set());
   };
+
   const toggleSelect = (id) => {
     setSelected((prev) => {
       const n = new Set(prev);
@@ -420,19 +210,22 @@ export default function PatientsPage() {
       return n;
     });
   };
+
   const toggleSelectAll = () => {
-    selected.size === paginated.length
+    selected.size === filtered.length
       ? setSelected(new Set())
-      : setSelected(new Set(paginated.map((p) => p.id)));
+      : setSelected(new Set(filtered.map((p) => p.id)));
   };
+
   const getInitials = (n) =>
-    n
+    (n || "??")
       .split(" ")
       .filter(Boolean)
       .map((x) => x[0])
       .join("")
       .toUpperCase()
       .slice(0, 2);
+
   const getColor = (n) => {
     const c = [
       "#0d9488",
@@ -445,7 +238,8 @@ export default function PatientsPage() {
       "#3b82f6",
     ];
     let h = 0;
-    for (let i = 0; i < n.length; i++) h = n.charCodeAt(i) + ((h << 5) - h);
+    const str = n || "";
+    for (let i = 0; i < str.length; i++) h = str.charCodeAt(i) + ((h << 5) - h);
     return c[Math.abs(h) % c.length];
   };
 
@@ -474,14 +268,14 @@ export default function PatientsPage() {
             value: stats.total,
             icon: <Users size={20} />,
             color: "#0891b2",
-            trend: "+18%",
+            trend: "Live Data",
           },
           {
             label: "Active",
             value: stats.active,
             icon: <UserCheck size={20} />,
             color: "#10b981",
-            trend: "+12%",
+            trend: "This Page",
           },
           {
             label: "Flagged / At Risk",
@@ -515,44 +309,45 @@ export default function PatientsPage() {
       </div>
 
       {/* Flagged Patients Widget */}
-      {FLAGGED_PATIENTS.length > 0 && (
+      {flaggedPatients.length > 0 && (
         <div className="pt-flagged admin-glass-card">
           <div className="pt-flagged-header">
             <div className="pt-flagged-title">
               <AlertTriangle size={18} style={{ color: "#ef4444" }} />
               <h3>Flagged Patients</h3>
               <span className="pt-flagged-count">
-                {FLAGGED_PATIENTS.length} alerts
+                {flaggedPatients.length} alerts
               </span>
             </div>
           </div>
           <div className="pt-flagged-list">
-            {FLAGGED_PATIENTS.map((p) => (
+            {flaggedPatients.map((p) => (
               <div key={p.id} className="pt-flagged-item">
                 <div
                   className="pt-flagged-avatar"
                   style={{ background: getColor(p.name) }}
                 >
-                  {getInitials(p.name)}
+                  {p.profileImageUrl ? (
+                    <img src={p.profileImageUrl} alt="avatar" />
+                  ) : (
+                    getInitials(p.name)
+                  )}
                 </div>
                 <div className="pt-flagged-info">
                   <span className="pt-flagged-name">{p.name}</span>
                   <span className="pt-flagged-meta">
-                    {p.chronicConditions !== "None" &&
-                    p.chronicConditions !== "N/A"
-                      ? p.chronicConditions
-                      : p.status === "suspended"
-                        ? "Suspended account"
-                        : "Needs review"}
+                    {p.status === "suspended"
+                      ? "Suspended account"
+                      : "Needs review"}
                   </span>
                   <span
                     className="pt-flagged-reason"
                     style={{
-                      color: RISK_MAP[p.risk]?.color,
-                      background: RISK_MAP[p.risk]?.bg,
+                      color: RISK_MAP[p.risk || "flagged"]?.color,
+                      background: RISK_MAP[p.risk || "flagged"]?.bg,
                     }}
                   >
-                    {RISK_MAP[p.risk]?.label}
+                    {RISK_MAP[p.risk || "flagged"]?.label}
                   </span>
                 </div>
                 <div className="pt-flagged-actions">
@@ -587,7 +382,7 @@ export default function PatientsPage() {
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
-              setCurrentPage(1);
+              setPage(0); // Reset to first page on search
             }}
           />
         </div>
@@ -595,10 +390,7 @@ export default function PatientsPage() {
           <select
             className="pt-select"
             value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setCurrentPage(1);
-            }}
+            onChange={(e) => setStatusFilter(e.target.value)}
           >
             <option value="all">All Status</option>
             {Object.entries(STATUS_MAP).map(([k, v]) => (
@@ -610,10 +402,7 @@ export default function PatientsPage() {
           <select
             className="pt-select"
             value={riskFilter}
-            onChange={(e) => {
-              setRiskFilter(e.target.value);
-              setCurrentPage(1);
-            }}
+            onChange={(e) => setRiskFilter(e.target.value)}
           >
             <option value="all">All Risk</option>
             {Object.entries(RISK_MAP).map(([k, v]) => (
@@ -629,8 +418,6 @@ export default function PatientsPage() {
           >
             <option value="joined">Sort: Joined</option>
             <option value="name">Sort: Name</option>
-            <option value="appointments">Sort: Appointments</option>
-            <option value="age">Sort: Age</option>
           </select>
           <button
             className="pt-sort-dir"
@@ -677,7 +464,7 @@ export default function PatientsPage() {
                 <input
                   type="checkbox"
                   checked={
-                    selected.size === paginated.length && paginated.length > 0
+                    selected.size === filtered.length && filtered.length > 0
                   }
                   onChange={toggleSelectAll}
                 />
@@ -694,7 +481,13 @@ export default function PatientsPage() {
             </tr>
           </thead>
           <tbody>
-            {paginated.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan={10} className="pt-empty">
+                  <p>Loading patients...</p>
+                </td>
+              </tr>
+            ) : filtered.length === 0 ? (
               <tr>
                 <td colSpan={10} className="pt-empty">
                   <Search size={40} strokeWidth={1} />
@@ -702,7 +495,7 @@ export default function PatientsPage() {
                 </td>
               </tr>
             ) : (
-              paginated.map((p) => (
+              filtered.map((p) => (
                 <tr
                   key={p.id}
                   className={selected.has(p.id) ? "pt-row-selected" : ""}
@@ -724,7 +517,20 @@ export default function PatientsPage() {
                         className="pt-avatar"
                         style={{ background: getColor(p.name) }}
                       >
-                        {getInitials(p.name)}
+                        {p.profileImageUrl ? (
+                          <img
+                            src={p.profileImageUrl}
+                            alt="avatar"
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              borderRadius: "50%",
+                              objectFit: "cover",
+                            }}
+                          />
+                        ) : (
+                          getInitials(p.name)
+                        )}
                       </div>
                       <div>
                         <div className="pt-name">
@@ -739,40 +545,47 @@ export default function PatientsPage() {
                   </td>
                   <td>
                     <span className="pt-age">
-                      {p.age} · {p.gender}
+                      {p.age || "N/A"} · {p.gender || "N/A"}
                     </span>
                   </td>
-                  <td className="pt-phone">{p.phone}</td>
+                  <td className="pt-phone">{p.phone || "Not provided"}</td>
                   <td>
                     <span
                       className="pt-status-badge"
                       style={{
-                        color: STATUS_MAP[p.status]?.color,
-                        background: STATUS_MAP[p.status]?.bg,
+                        color:
+                          STATUS_MAP[p.status?.toLowerCase() || "active"]
+                            ?.color,
+                        background:
+                          STATUS_MAP[p.status?.toLowerCase() || "active"]?.bg,
                       }}
                     >
-                      {STATUS_MAP[p.status]?.label}
+                      {STATUS_MAP[p.status?.toLowerCase() || "active"]?.label}
                     </span>
                   </td>
                   <td>
                     <span
                       className="pt-risk-badge"
                       style={{
-                        color: RISK_MAP[p.risk]?.color,
-                        background: RISK_MAP[p.risk]?.bg,
+                        color:
+                          RISK_MAP[p.risk?.toLowerCase() || "normal"]?.color,
+                        background:
+                          RISK_MAP[p.risk?.toLowerCase() || "normal"]?.bg,
                       }}
                     >
-                      {RISK_MAP[p.risk]?.label}
+                      {RISK_MAP[p.risk?.toLowerCase() || "normal"]?.label}
                     </span>
                   </td>
-                  <td className="pt-metric">{p.appointments}</td>
-                  <td className="pt-metric">{p.prescriptions}</td>
+                  <td className="pt-metric">{p.appointments || 0}</td>
+                  <td className="pt-metric">{p.prescriptions || 0}</td>
                   <td className="pt-date">
-                    {new Date(p.joined).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
+                    {p.createdAt
+                      ? new Date(p.createdAt).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })
+                      : "N/A"}
                   </td>
                   <td>
                     <PatientActions
@@ -786,32 +599,41 @@ export default function PatientsPage() {
             )}
           </tbody>
         </table>
+
+        {/* Server-Side Pagination Controls */}
         {totalPages > 1 && (
           <div className="pt-pagination">
             <span className="pt-page-info">
-              Showing {(currentPage - 1) * PAGE_SIZE + 1}–
-              {Math.min(currentPage * PAGE_SIZE, filtered.length)} of{" "}
-              {filtered.length}
+              Showing {page * PAGE_SIZE + 1}–
+              {Math.min((page + 1) * PAGE_SIZE, totalElements)} of{" "}
+              {totalElements}
             </span>
             <div className="pt-page-btns">
               <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage((p) => p - 1)}
+                disabled={page === 0}
+                onClick={() => setPage((p) => p - 1)}
               >
                 <ChevronLeft size={16} />
               </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                <button
-                  key={p}
-                  className={p === currentPage ? "active" : ""}
-                  onClick={() => setCurrentPage(p)}
-                >
-                  {p}
-                </button>
-              ))}
+
+              {/* Dynamic Page Buttons */}
+              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                const pageNum = page < 3 ? i : page - 2 + i;
+                if (pageNum >= totalPages) return null;
+                return (
+                  <button
+                    key={pageNum}
+                    className={pageNum === page ? "active" : ""}
+                    onClick={() => setPage(pageNum)}
+                  >
+                    {pageNum + 1}
+                  </button>
+                );
+              })}
+
               <button
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage((p) => p + 1)}
+                disabled={page >= totalPages - 1}
+                onClick={() => setPage((p) => p + 1)}
               >
                 <ChevronRight size={16} />
               </button>
@@ -828,23 +650,24 @@ export default function PatientsPage() {
           </h3>
           <div className="pt-spec-bars">
             {["High", "Medium", "Low", "None"].map((lvl) => {
-              const count = patients.filter((p) => p.engagement === lvl).length;
+              const count = patients.filter(
+                (p) => (p.engagement || "Medium") === lvl,
+              ).length;
               const colors = {
                 High: "#10b981",
                 Medium: "#0891b2",
                 Low: "#f59e0b",
                 None: "#94a3b8",
               };
+              const pct =
+                patients.length > 0 ? (count / patients.length) * 100 : 0;
               return (
                 <div key={lvl} className="pt-spec-bar">
                   <span className="pt-spec-label">{lvl}</span>
                   <div className="pt-spec-track">
                     <div
                       className="pt-spec-fill"
-                      style={{
-                        width: `${(count / patients.length) * 100}%`,
-                        background: colors[lvl],
-                      }}
+                      style={{ width: `${pct}%`, background: colors[lvl] }}
                     ></div>
                   </div>
                   <span
@@ -864,7 +687,9 @@ export default function PatientsPage() {
           </h3>
           <div className="pt-status-overview">
             {Object.entries(STATUS_MAP).map(([key, val]) => {
-              const count = patients.filter((p) => p.status === key).length;
+              const count = patients.filter(
+                (p) => (p.status?.toLowerCase() || "active") === key,
+              ).length;
               const pct =
                 patients.length > 0
                   ? ((count / patients.length) * 100).toFixed(0)
@@ -920,7 +745,7 @@ export default function PatientsPage() {
             </h3>
             <p>
               Are you sure you want to <strong>{confirmAction.type}</strong>{" "}
-              <strong>{confirmAction.doctor.name}</strong>?
+              <strong>{confirmAction.patient.name}</strong>?
             </p>
             <div className="pt-modal-actions">
               <button
@@ -949,24 +774,76 @@ export default function PatientsPage() {
   );
 }
 
-/* ═══════ Actions ═══════ */
+/* ═══════ Actions Component ═══════ */
 function PatientActions({ doc, onAction, onView }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
+  const btnRef = useRef(null);
+  const menuRef = useRef(null);
+
   useEffect(() => {
     const h = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+      if (
+        btnRef.current &&
+        !btnRef.current.contains(e.target) &&
+        menuRef.current &&
+        !menuRef.current.contains(e.target)
+      )
+        setOpen(false);
     };
     if (open) document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, [open]);
+
+  // Recalculate on scroll/resize so the menu stays aligned
+  useEffect(() => {
+    if (!open) return;
+    const update = () => {
+      if (btnRef.current) {
+        const r = btnRef.current.getBoundingClientRect();
+        setMenuPos({
+          top: r.bottom + 4,
+          right: window.innerWidth - r.right,
+        });
+      }
+    };
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open]);
+
+  const handleOpen = () => {
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setMenuPos({
+        top: r.bottom + 4,
+        right: window.innerWidth - r.right,
+      });
+    }
+    setOpen((v) => !v);
+  };
+
+  const docStatus = doc.status?.toLowerCase() || "active";
+
   return (
-    <div className="pt-actions-wrap" ref={ref}>
-      <button className="pt-actions-btn" onClick={() => setOpen(!open)}>
+    <div className="pt-actions-wrap" ref={btnRef}>
+      <button className="pt-actions-btn" onClick={handleOpen}>
         <MoreHorizontal size={16} />
       </button>
       {open && (
-        <div className="pt-actions-menu">
+        <div
+          ref={menuRef}
+          className="pt-actions-menu"
+          style={{
+            position: "fixed",
+            top: menuPos.top,
+            right: menuPos.right,
+            left: "auto",
+          }}
+        >
           <button
             onClick={() => {
               onView();
@@ -975,7 +852,7 @@ function PatientActions({ doc, onAction, onView }) {
           >
             <Eye size={14} /> View Profile
           </button>
-          {doc.status !== "suspended" && (
+          {docStatus !== "suspended" && (
             <button
               className="pt-act-suspend"
               onClick={() => {
@@ -986,7 +863,7 @@ function PatientActions({ doc, onAction, onView }) {
               <ShieldOff size={14} /> Suspend
             </button>
           )}
-          {(doc.status === "suspended" || doc.status === "inactive") && (
+          {(docStatus === "suspended" || docStatus === "inactive") && (
             <button
               className="pt-act-activate"
               onClick={() => {
@@ -1045,6 +922,9 @@ function PatientDrawer({
   updatePatient,
 }) {
   const [tab, setTab] = useState("profile");
+  const docStatus = doc.status?.toLowerCase() || "active";
+  const docRisk = doc.risk?.toLowerCase() || "normal";
+
   return (
     <>
       <div className="pt-drawer-overlay" onClick={onClose}></div>
@@ -1060,34 +940,47 @@ function PatientDrawer({
             className="pt-drawer-avatar"
             style={{ background: getColor(doc.name) }}
           >
-            {getInitials(doc.name)}
+            {doc.profileImageUrl ? (
+              <img
+                src={doc.profileImageUrl}
+                alt="avatar"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  borderRadius: "50%",
+                  objectFit: "cover",
+                }}
+              />
+            ) : (
+              getInitials(doc.name)
+            )}
           </div>
           <div className="pt-drawer-info">
             <h3>
-              {doc.name}
+              {doc.name}{" "}
               {doc.riskFlag && <Flag size={14} className="pt-risk-flag" />}
             </h3>
             <span className="pt-drawer-age">
-              {doc.age} yrs · {doc.gender}
+              {doc.age || "N/A"} yrs · {doc.gender || "N/A"}
             </span>
             <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
               <span
                 className="pt-status-badge"
                 style={{
-                  color: STATUS_MAP[doc.status]?.color,
-                  background: STATUS_MAP[doc.status]?.bg,
+                  color: STATUS_MAP[docStatus]?.color,
+                  background: STATUS_MAP[docStatus]?.bg,
                 }}
               >
-                {STATUS_MAP[doc.status]?.label}
+                {STATUS_MAP[docStatus]?.label}
               </span>
               <span
                 className="pt-risk-badge"
                 style={{
-                  color: RISK_MAP[doc.risk]?.color,
-                  background: RISK_MAP[doc.risk]?.bg,
+                  color: RISK_MAP[docRisk]?.color,
+                  background: RISK_MAP[docRisk]?.bg,
                 }}
               >
-                {RISK_MAP[doc.risk]?.label}
+                {RISK_MAP[docRisk]?.label}
               </span>
             </div>
           </div>
@@ -1097,13 +990,14 @@ function PatientDrawer({
             <Mail size={14} /> {doc.email}
           </div>
           <div>
-            <Phone size={14} /> {doc.phone}
+            <Phone size={14} /> {doc.phone || "Not provided"}
           </div>
           <div>
-            <MapPin size={14} /> {doc.address}
+            <MapPin size={14} /> {doc.address || "No address on file"}
           </div>
           <div>
-            <Heart size={14} /> Emergency: {doc.emergencyContact}
+            <Heart size={14} /> Emergency:{" "}
+            {doc.emergencyContact || "None listed"}
           </div>
         </div>
         <div className="pt-drawer-tabs">
@@ -1124,34 +1018,32 @@ function PatientDrawer({
                 <div className="pt-detail-item">
                   <span className="pt-detail-label">Chronic Conditions</span>
                   <span className="pt-detail-value">
-                    {doc.chronicConditions}
+                    {doc.chronicConditions || "N/A"}
                   </span>
                 </div>
                 <div className="pt-detail-item">
                   <span className="pt-detail-label">Engagement</span>
-                  <span className="pt-detail-value">{doc.engagement}</span>
+                  <span className="pt-detail-value">
+                    {doc.engagement || "Medium"}
+                  </span>
                 </div>
                 <div className="pt-detail-item">
                   <span className="pt-detail-label">Last Login</span>
-                  <span className="pt-detail-value">{doc.lastLogin}</span>
+                  <span className="pt-detail-value">
+                    {doc.lastLogin || "N/A"}
+                  </span>
                 </div>
                 <div className="pt-detail-item">
                   <span className="pt-detail-label">Joined</span>
                   <span className="pt-detail-value">
-                    {new Date(doc.joined).toLocaleDateString("en-US", {
-                      month: "long",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
+                    {doc.createdAt
+                      ? new Date(doc.createdAt).toLocaleDateString("en-US", {
+                          month: "long",
+                          day: "numeric",
+                          year: "numeric",
+                        })
+                      : "N/A"}
                   </span>
-                </div>
-                <div className="pt-detail-item">
-                  <span className="pt-detail-label">Last Active</span>
-                  <span className="pt-detail-value">{doc.lastActive}</span>
-                </div>
-                <div className="pt-detail-item">
-                  <span className="pt-detail-label">Messages</span>
-                  <span className="pt-detail-value">{doc.messages}</span>
                 </div>
               </div>
             </div>
@@ -1161,22 +1053,24 @@ function PatientDrawer({
               <div className="pt-activity-stats">
                 <div className="pt-stat-card">
                   <Stethoscope size={20} style={{ color: "#0891b2" }} />
-                  <span className="pt-stat-val">{doc.appointments}</span>
+                  <span className="pt-stat-val">{doc.appointments || 0}</span>
                   <span className="pt-stat-label">Appointments</span>
                 </div>
                 <div className="pt-stat-card">
                   <Pill size={20} style={{ color: "#10b981" }} />
-                  <span className="pt-stat-val">{doc.prescriptions}</span>
+                  <span className="pt-stat-val">{doc.prescriptions || 0}</span>
                   <span className="pt-stat-label">Prescriptions</span>
                 </div>
                 <div className="pt-stat-card">
                   <MessageSquare size={20} style={{ color: "#6366f1" }} />
-                  <span className="pt-stat-val">{doc.messages}</span>
+                  <span className="pt-stat-val">{doc.messages || 0}</span>
                   <span className="pt-stat-label">Messages</span>
                 </div>
                 <div className="pt-stat-card">
                   <TrendingUp size={20} style={{ color: "#f59e0b" }} />
-                  <span className="pt-stat-val">{doc.engagement}</span>
+                  <span className="pt-stat-val">
+                    {doc.engagement || "Medium"}
+                  </span>
                   <span className="pt-stat-label">Engagement</span>
                 </div>
               </div>
@@ -1190,9 +1084,11 @@ function PatientDrawer({
                     <Stethoscope size={15} /> Recent Visits
                   </h4>
                   <ul>
-                    {doc.recentVisits.map((v, i) => (
-                      <li key={i}>{v}</li>
-                    ))}
+                    {doc.recentVisits?.length > 0 ? (
+                      doc.recentVisits.map((v, i) => <li key={i}>{v}</li>)
+                    ) : (
+                      <li>No recent visits</li>
+                    )}
                   </ul>
                 </div>
                 <div className="pt-med-block">
@@ -1200,28 +1096,18 @@ function PatientDrawer({
                     <Pill size={15} /> Current Prescriptions
                   </h4>
                   <ul>
-                    {doc.latestRx.map((rx, i) => (
-                      <li key={i}>{rx}</li>
-                    ))}
+                    {doc.latestRx?.length > 0 ? (
+                      doc.latestRx.map((rx, i) => <li key={i}>{rx}</li>)
+                    ) : (
+                      <li>No active prescriptions</li>
+                    )}
                   </ul>
-                </div>
-                <div className="pt-med-block">
-                  <h4>
-                    <Calendar size={15} /> Follow-up
-                  </h4>
-                  <p
-                    className={
-                      doc.followUp.includes("OVERDUE") ? "pt-overdue" : ""
-                    }
-                  >
-                    {doc.followUp}
-                  </p>
                 </div>
                 <div className="pt-med-block">
                   <h4>
                     <Heart size={15} /> Chronic Conditions
                   </h4>
-                  <p>{doc.chronicConditions}</p>
+                  <p>{doc.chronicConditions || "None reported"}</p>
                 </div>
               </div>
               <div className="pt-med-disclaimer">
@@ -1260,7 +1146,7 @@ function PatientDrawer({
           )}
         </div>
         <div className="pt-drawer-footer">
-          {doc.status !== "suspended" && (
+          {docStatus !== "suspended" && (
             <button
               className="pt-drawer-suspend"
               onClick={() => onAction("suspend", doc)}
@@ -1268,7 +1154,7 @@ function PatientDrawer({
               <ShieldOff size={16} /> Suspend
             </button>
           )}
-          {(doc.status === "suspended" || doc.status === "inactive") && (
+          {(docStatus === "suspended" || docStatus === "inactive") && (
             <button
               className="pt-drawer-activate"
               onClick={() => onAction("activate", doc)}

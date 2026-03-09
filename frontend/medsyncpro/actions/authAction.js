@@ -10,14 +10,10 @@
 
 import {
   logoutService,
-  getSessionService,
   resendVerificationService,
   verifyEmailService,
 } from "@/lib/auth.service";
-import { NextResponse } from "next/server";
-import api from "./axios";
-import { headers } from "next/headers";
-import { config } from "@/lib/config";
+import { serverApiClient } from "@/lib/api-client";
 
 // ─── Resend verification ──────────────────────────────────────────────────────
 
@@ -66,15 +62,11 @@ export async function getSession() {
   try {
     const res = await serverApiClient("/auth/me", {
       method: "GET",
-      cache: "no-store",
-      credentials: "include",
     });
 
-    const body = await res.json();
+    const body = res.data;
 
-    console.log("/me body : ", body);
-
-    if (!body.success) return null;
+    if (!body?.success) return null;
 
     return body.data ?? null;
   } catch {

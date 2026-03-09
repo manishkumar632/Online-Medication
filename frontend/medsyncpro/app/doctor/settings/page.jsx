@@ -83,7 +83,6 @@ function TagInput({ tags, onChange, placeholder }) {
 // ────────────────────────── PROFILE ──────────────────────────
 function ProfileSection({ data, onChange }) {
     const [photo, setPhoto] = useState(null);
-    const { doctorProfileData } = useAuth();
     return (
       <div className="ds-section" id="profile">
         <h2 className="ds-section-title">
@@ -126,7 +125,7 @@ function ProfileSection({ data, onChange }) {
             <label>Full Name</label>
             <input
               type="text"
-              value={doctorProfileData?.name || ""}
+              value={data?.name || ""}
               onChange={(e) => onChange("name", e.target.value)}
               placeholder="Dr. John Smith"
             />
@@ -137,7 +136,7 @@ function ProfileSection({ data, onChange }) {
             </label>
             <input
               type="email"
-              value={doctorProfileData?.email || ""}
+              value={data?.email || ""}
               readOnly
               className="ds-readonly"
             />
@@ -148,7 +147,7 @@ function ProfileSection({ data, onChange }) {
               <Phone size={15} />
               <input
                 type="tel"
-                value={doctorProfileData?.phone || ""}
+                value={data?.phone || ""}
                 onChange={(e) => onChange("phone", e.target.value)}
                 placeholder="+91 98765 43210"
               />
@@ -950,15 +949,25 @@ export default function DoctorSettingsPage() {
     const profileImageRef = useRef(null);
 
     useEffect(() => {
-        (async () => {
-            const response = await fetchDoctorProfileData();
-            if (response !== null) {
-                setDoctorProfileData(response);
-            } else {
-                setDoctorProfileData({});
-            }
-        })()
-    }, [])
+      (async () => {
+        const response = await fetchDoctorProfileData();
+        if (response?.success && response.data) {
+          const d = response.data;
+          setDoctorProfileData(d);
+          setProfile({
+            name: d.name || "",
+            email: d.email || "",
+            phone: d.phone || "",
+            bio: d.bio || "",
+            gender: d.gender || "",
+            dob: d.dob || "",
+            profileImageUrl: d.profileImage || "",
+          });
+        } else {
+          setDoctorProfileData({});
+        }
+      })();
+    }, []);
 
     // ── Load all settings on mount ──
     const loadSettings = useCallback(async () => {

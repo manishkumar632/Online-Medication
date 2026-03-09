@@ -56,6 +56,25 @@ export async function markAsReadAction(notificationId) {
   }
 }
 
+// ─── Mark ALL notifications as read ──────────────────────────────────────────
+
+export async function markAllAsReadAction() {
+  try {
+    const response = await serverApiClient("/notifications/read-all", {
+      method: "PUT",
+    });
+    if (response.data.success) return { success: true };
+    return {
+      success: false,
+      message: response.data.message ?? "Failed to mark all as read.",
+    };
+  } catch (error) {
+    const message =
+      error instanceof ApiError ? error.message : "Failed to mark all as read.";
+    return { success: false, message };
+  }
+}
+
 // ─── Register FCM token for push notifications (admin only) ──────────────────
 
 export async function registerFcmTokenAction(fcmToken) {

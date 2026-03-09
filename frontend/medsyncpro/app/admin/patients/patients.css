@@ -579,16 +579,14 @@
 }
 
 .pt-actions-menu {
-    position: absolute;
-    right: 0;
-    top: 100%;
-    margin-top: 4px;
+    /* position & coordinates are set inline via JS (fixed) so the menu
+       escapes any overflow:hidden ancestor (e.g. the scrollable table wrapper) */
     background: #fff;
     border: 1px solid rgba(0, 0, 0, 0.08);
     border-radius: 12px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
     min-width: 180px;
-    z-index: 100;
+    z-index: 9999;
     padding: 6px;
     animation: pt-fade-in 0.15s ease;
 }

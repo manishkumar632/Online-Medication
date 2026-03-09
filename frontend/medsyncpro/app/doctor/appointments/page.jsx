@@ -6,6 +6,7 @@ import {
     updateAppointmentStatus,
     saveAppointmentNotes,
     saveAppointmentPrescription,
+    rescheduleDoctorAppointment,
 } from "@/actions/appointmentAction";
 import RouteGuard from "../../components/RouteGuard";
 import {
@@ -21,13 +22,13 @@ import "../doctor-appointments.css";
 const HOURS = Array.from({ length: 12 }, (_, i) => i + 8);
 
 const STATUS_CONFIG = {
-    REQUESTED: { label: "Requested", cls: "scheduled", icon: CalendarClock },
-    CONFIRMED: { label: "Confirmed", cls: "confirmed", icon: CalendarCheck },
-    IN_PROGRESS: { label: "In Progress", cls: "inprogress", icon: Play },
-    COMPLETED: { label: "Completed", cls: "completed", icon: CheckCircle2 },
-    CANCELLED: { label: "Cancelled", cls: "cancelled", icon: XCircle },
-    REJECTED: { label: "Rejected", cls: "cancelled", icon: XCircle },
-    NO_SHOW: { label: "No Show", cls: "missed", icon: CircleAlert },
+  PENDING: { label: "Pending", cls: "scheduled", icon: CalendarClock },
+  CONFIRMED: { label: "Confirmed", cls: "confirmed", icon: CalendarCheck },
+  IN_PROGRESS: { label: "In Progress", cls: "inprogress", icon: Play },
+  COMPLETED: { label: "Completed", cls: "completed", icon: CheckCircle2 },
+  CANCELLED: { label: "Cancelled", cls: "cancelled", icon: XCircle },
+  REJECTED: { label: "Rejected", cls: "cancelled", icon: XCircle },
+  NO_SHOW: { label: "No Show", cls: "missed", icon: CircleAlert },
 };
 
 const VIEWS = [
@@ -133,42 +134,99 @@ function DayTimeline({ appointments, onSelect, onAction }) {
                     });
                     const timeLabel = `${hour > 12 ? hour - 12 : hour}:00 ${hour >= 12 ? "PM" : "AM"}`;
                     return (
-                        <div key={hour} className="da-timeline-row">
-                            <div className="da-timeline-time">{timeLabel}</div>
-                            <div className="da-timeline-slot">
-                                <div className="da-timeline-line" />
-                                {hourAppts.map(appt => (
-                                    <div key={appt.id} className={`da-timeline-card ${STATUS_CONFIG[appt.status]?.cls || "scheduled"} ${appt.type === "VIDEO" ? "online" : "in-person"}`} onClick={() => onSelect(appt)}>
-                                        <div className="da-tc-header">
-                                            <div className="da-tc-patient">
-                                                <div className="da-tc-avatar" style={{ background: getColor(appt.patientName) }}>{getInitials(appt.patientName)}</div>
-                                                <div>
-                                                    <span className="da-tc-name">{appt.patientName || "Patient"}</span>
-                                                    <span className="da-tc-condition">{appt.symptoms ? (appt.symptoms.length > 30 ? appt.symptoms.substring(0, 30) + "…" : appt.symptoms) : "Consultation"}</span>
-                                                </div>
-                                            </div>
-                                            <StatusBadge status={appt.status} />
-                                        </div>
-                                        <div className="da-tc-footer">
-                                            <span className="da-tc-time"><Clock size={11} /> {formatTime12(appt.scheduledTime)}{appt.endTime ? ` – ${formatTime12(appt.endTime)}` : ""}</span>
-                                            <TypeBadge type={appt.type} />
-                                        </div>
-                                        <div className="da-tc-actions">
-                                            {appt.status === "REQUESTED" && (
-                                                <button className="da-tc-btn start" onClick={e => { e.stopPropagation(); onAction("approve", appt); }}><Check size={12} /> Approve</button>
-                                            )}
-                                            {appt.status === "CONFIRMED" && (
-                                                <button className="da-tc-btn start" onClick={e => { e.stopPropagation(); onAction("start", appt); }}><Play size={12} /> Start</button>
-                                            )}
-                                            {appt.status === "IN_PROGRESS" && (
-                                                <button className="da-tc-btn start" onClick={e => { e.stopPropagation(); onAction("complete", appt); }}><CheckCircle2 size={12} /> Complete</button>
-                                            )}
-                                            <button className="da-tc-btn" onClick={e => { e.stopPropagation(); onSelect(appt); }}><Eye size={12} /> View</button>
-                                        </div>
-                                    </div>
-                                ))}
+                      <div key={hour} className="da-timeline-row">
+                        <div className="da-timeline-time">{timeLabel}</div>
+                        <div className="da-timeline-slot">
+                          <div className="da-timeline-line" />
+                          {hourAppts.map((appt) => (
+                            <div
+                              key={appt.id}
+                              className={`da-timeline-card ${STATUS_CONFIG[appt.status]?.cls || "scheduled"} ${appt.type === "VIDEO" ? "online" : "in-person"}`}
+                              onClick={() => onSelect(appt)}
+                            >
+                              <div className="da-tc-header">
+                                <div className="da-tc-patient">
+                                  <div
+                                    className="da-tc-avatar"
+                                    style={{
+                                      background: getColor(appt.patientName),
+                                    }}
+                                  >
+                                    {getInitials(appt.patientName)}
+                                  </div>
+                                  <div>
+                                    <span className="da-tc-name">
+                                      {appt.patientName || "Patient"}
+                                    </span>
+                                    <span className="da-tc-condition">
+                                      {appt.symptoms
+                                        ? appt.symptoms.length > 30
+                                          ? appt.symptoms.substring(0, 30) + "…"
+                                          : appt.symptoms
+                                        : "Consultation"}
+                                    </span>
+                                  </div>
+                                </div>
+                                <StatusBadge status={appt.status} />
+                              </div>
+                              <div className="da-tc-footer">
+                                <span className="da-tc-time">
+                                  <Clock size={11} />{" "}
+                                  {formatTime12(appt.scheduledTime)}
+                                  {appt.endTime
+                                    ? ` – ${formatTime12(appt.endTime)}`
+                                    : ""}
+                                </span>
+                                <TypeBadge type={appt.type} />
+                              </div>
+                              <div className="da-tc-actions">
+                                {appt.status === "PENDING" && (
+                                  <button
+                                    className="da-tc-btn start"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onAction("approve", appt);
+                                    }}
+                                  >
+                                    <Check size={12} /> Approve
+                                  </button>
+                                )}
+                                {appt.status === "CONFIRMED" && (
+                                  <button
+                                    className="da-tc-btn start"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onAction("start", appt);
+                                    }}
+                                  >
+                                    <Play size={12} /> Start
+                                  </button>
+                                )}
+                                {appt.status === "IN_PROGRESS" && (
+                                  <button
+                                    className="da-tc-btn start"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onAction("complete", appt);
+                                    }}
+                                  >
+                                    <CheckCircle2 size={12} /> Complete
+                                  </button>
+                                )}
+                                <button
+                                  className="da-tc-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSelect(appt);
+                                  }}
+                                >
+                                  <Eye size={12} /> View
+                                </button>
+                              </div>
                             </div>
+                          ))}
                         </div>
+                      </div>
                     );
                 })}
             </div>
@@ -179,55 +237,124 @@ function DayTimeline({ appointments, onSelect, onAction }) {
 // ═══ List View ═══
 function ListView({ appointments, onSelect, onAction }) {
     return (
-        <div className="da-list-card">
-            <table className="da-table">
-                <thead><tr><th>Time</th><th>Patient</th><th>Reason</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
-                <tbody>
-                    {appointments.map(appt => (
-                        <tr key={appt.id} className={["CANCELLED", "REJECTED"].includes(appt.status) ? "cancelled-row" : ""} onClick={() => onSelect(appt)}>
-                            <td>
-                                <div className="da-time-cell">
-                                    <Clock size={13} />
-                                    <div>
-                                        <span className="da-time-main">{formatTime12(appt.scheduledTime)}</span>
-                                        {appt.endTime && <span className="da-time-end">to {formatTime12(appt.endTime)}</span>}
-                                    </div>
-                                </div>
-                            </td>
-                            <td>
-                                <div className="da-patient-cell">
-                                    <div className="da-table-avatar" style={{ background: getColor(appt.patientName) }}>{getInitials(appt.patientName)}</div>
-                                    <div>
-                                        <span className="da-patient-name">{appt.patientName || "Patient"}</span>
-                                        <span className="da-patient-meta">{appt.patientEmail || ""}</span>
-                                    </div>
-                                </div>
-                            </td>
-                            <td className="da-reason-cell">{appt.symptoms || "–"}</td>
-                            <td><TypeBadge type={appt.type} /></td>
-                            <td><StatusBadge status={appt.status} /></td>
-                            <td>
-                                <div className="da-actions" onClick={e => e.stopPropagation()}>
-                                    {appt.status === "REQUESTED" && (
-                                        <>
-                                            <button className="da-action-btn start" title="Approve" onClick={() => onAction("approve", appt)}><Check size={14} /></button>
-                                            <button className="da-action-btn" title="Reject" onClick={() => onAction("reject", appt)}><X size={14} /></button>
-                                        </>
-                                    )}
-                                    {appt.status === "CONFIRMED" && (
-                                        <button className="da-action-btn start" title="Start" onClick={() => onAction("start", appt)}><Play size={14} /></button>
-                                    )}
-                                    {appt.status === "IN_PROGRESS" && (
-                                        <button className="da-action-btn start" title="Complete" onClick={() => onAction("complete", appt)}><CheckCircle2 size={14} /></button>
-                                    )}
-                                    <button className="da-action-btn" title="View" onClick={() => onSelect(appt)}><Eye size={14} /></button>
-                                </div>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
+      <div className="da-list-card">
+        <table className="da-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Patient</th>
+              <th>Reason</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {appointments.map((appt) => (
+              <tr
+                key={appt.id}
+                className={
+                  ["CANCELLED", "REJECTED"].includes(appt.status)
+                    ? "cancelled-row"
+                    : ""
+                }
+                onClick={() => onSelect(appt)}
+              >
+                <td>
+                  <div className="da-time-cell">
+                    <Clock size={13} />
+                    <div>
+                      <span className="da-time-main">
+                        {formatTime12(appt.scheduledTime)}
+                      </span>
+                      {appt.endTime && (
+                        <span className="da-time-end">
+                          to {formatTime12(appt.endTime)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div className="da-patient-cell">
+                    <div
+                      className="da-table-avatar"
+                      style={{ background: getColor(appt.patientName) }}
+                    >
+                      {getInitials(appt.patientName)}
+                    </div>
+                    <div>
+                      <span className="da-patient-name">
+                        {appt.patientName || "Patient"}
+                      </span>
+                      <span className="da-patient-meta">
+                        {appt.patientEmail || ""}
+                      </span>
+                    </div>
+                  </div>
+                </td>
+                <td className="da-reason-cell">{appt.symptoms || "–"}</td>
+                <td>
+                  <TypeBadge type={appt.type} />
+                </td>
+                <td>
+                  <StatusBadge status={appt.status} />
+                </td>
+                <td>
+                  <div
+                    className="da-actions"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {appt.status === "PENDING" && (
+                      <>
+                        <button
+                          className="da-action-btn start"
+                          title="Approve"
+                          onClick={() => onAction("approve", appt)}
+                        >
+                          <Check size={14} />
+                        </button>
+                        <button
+                          className="da-action-btn"
+                          title="Reject"
+                          onClick={() => onAction("reject", appt)}
+                        >
+                          <X size={14} />
+                        </button>
+                      </>
+                    )}
+                    {appt.status === "CONFIRMED" && (
+                      <button
+                        className="da-action-btn start"
+                        title="Start"
+                        onClick={() => onAction("start", appt)}
+                      >
+                        <Play size={14} />
+                      </button>
+                    )}
+                    {appt.status === "IN_PROGRESS" && (
+                      <button
+                        className="da-action-btn start"
+                        title="Complete"
+                        onClick={() => onAction("complete", appt)}
+                      >
+                        <CheckCircle2 size={14} />
+                      </button>
+                    )}
+                    <button
+                      className="da-action-btn"
+                      title="View"
+                      onClick={() => onSelect(appt)}
+                    >
+                      <Eye size={14} />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     );
 }
 
@@ -352,7 +479,10 @@ function AppointmentDrawer({ appt, onClose, onAction }) {
                         <button className="da-btn-outline"><RefreshCw size={14} /> Schedule Follow-up</button>
                     )}
                     {!["COMPLETED", "CANCELLED", "REJECTED", "NO_SHOW"].includes(appt.status) && (
-                        <button className="da-btn-danger-outline" onClick={() => onAction("cancel", appt)}><XCircle size={14} /> Cancel</button>
+                        <>
+                            <button className="da-btn-outline" onClick={() => onAction("reschedule", appt)}><CalendarClock size={14} /> Reschedule</button>
+                            <button className="da-btn-danger-outline" onClick={() => onAction("cancel", appt)}><XCircle size={14} /> Cancel</button>
+                        </>
                     )}
                 </div>
             </aside>
@@ -462,9 +592,7 @@ function DoctorAppointmentsPage() {
     const [prescribeAppt, setPrescribeAppt] = useState(null);
     const [notesAppt, setNotesAppt] = useState(null);
 
-    useEffect(() => { fetchAppointments(); }, []);
-
-    const fetchAppointments = async () => {
+    async function fetchAppointments() {
         setLoading(true);
         try {
             const result = await fetchDoctorAppointments(0, 50);
@@ -476,7 +604,14 @@ function DoctorAppointmentsPage() {
             console.error(err);
         }
         setLoading(false);
-    };
+    }
+
+    useEffect(() => {
+        const id = setTimeout(() => {
+            fetchAppointments();
+        }, 0);
+        return () => clearTimeout(id);
+    }, []);
 
     const showToast = (type, message) => {
         setToast({ type, message });
@@ -508,6 +643,25 @@ function DoctorAppointmentsPage() {
                     actionName = "cancel";
                     body = { reason: cancelReason };
                     break;
+                case "reschedule":
+                    const newDate = prompt("New date (YYYY-MM-DD):");
+                    if (!newDate) return;
+                    const newTime = prompt("New time (HH:mm):");
+                    if (!newTime) return;
+                    const rescheduleReason = prompt("Reason for reschedule (optional):") || "";
+                    const rescheduleResult = await rescheduleDoctorAppointment(appt.id, {
+                        scheduledDate: newDate,
+                        scheduledTime: newTime,
+                        reason: rescheduleReason,
+                    });
+                    if (rescheduleResult.success) {
+                        showToast("success", "Appointment rescheduled successfully");
+                        fetchAppointments();
+                        setSelectedAppt(null);
+                    } else {
+                        showToast("error", rescheduleResult.message || "Reschedule failed");
+                    }
+                    return;
                 case "prescribe":
                     setPrescribeAppt(appt);
                     return;

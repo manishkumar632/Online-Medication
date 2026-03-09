@@ -1,3 +1,4 @@
+// app/admin/doctors/page.jsx
 "use client";
 import "./doctors.css";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";

@@ -10,7 +10,8 @@ const COOKIE_MAX_AGE = 60 * 60 * 24; // 24 h
 
 // ─── Cookie helpers ───────────────────────────────────────────────────────────
 
-function parseAccessToken(rawSetCookie) {
+function parseSetCookieTokens(rawSetCookie) {
+  const tokens = { access_token: null, refresh_token: null };
   const cookieStrings = rawSetCookie.split(/,\s*(?=[a-zA-Z_]+=)/);
   for (const cookieStr of cookieStrings) {
     const [nameVal] = cookieStr.trim().split(";");
@@ -18,12 +19,14 @@ function parseAccessToken(rawSetCookie) {
     if (eqIdx === -1) continue;
     const name = nameVal.slice(0, eqIdx).trim();
     const value = nameVal.slice(eqIdx + 1).trim();
-    if (name === ACCESS_TOKEN_COOKIE) return value;
+    if (name === "access_token" || name === "refresh_token") {
+      tokens[name] = value;
+    }
   }
-  return null;
+  return tokens;
 }
 
-async function setAuthCookies(token, role) {
+async function setAuthCookies(token, role, refreshToken) {
   const store = await cookies();
   const shared = {
     path: "/",
@@ -34,12 +37,16 @@ async function setAuthCookies(token, role) {
   };
   store.set({ ...shared, name: ACCESS_TOKEN_COOKIE, value: token });
   store.set({ ...shared, name: USER_ROLE_COOKIE, value: role });
+  if (refreshToken) {
+    store.set({ ...shared, name: "refresh_token", value: refreshToken });
+  }
 }
 
 async function clearAuthCookies() {
   const store = await cookies();
   store.delete(ACCESS_TOKEN_COOKIE);
   store.delete(USER_ROLE_COOKIE);
+  store.delete("refresh_token");
 }
 
 // ─── Login ────────────────────────────────────────────────────────────────────
@@ -87,16 +94,16 @@ export async function loginService(credentials) {
   }
 
   const rawSetCookie = response.headers.get("set-cookie");
-  const token = rawSetCookie ? parseAccessToken(rawSetCookie) : null;
+  const tokens = rawSetCookie ? parseSetCookieTokens(rawSetCookie) : { access_token: null, refresh_token: null };
 
-  if (!token) {
+  if (!tokens.access_token) {
     return {
       success: false,
       message: "Session token missing from server response.",
     };
   }
 
-  await setAuthCookies(token, user.role);
+  await setAuthCookies(tokens.access_token, user.role, tokens.refresh_token);
 
   return { success: true, data: user };
 }

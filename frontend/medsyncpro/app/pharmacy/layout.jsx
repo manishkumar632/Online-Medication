@@ -10,7 +10,7 @@ export default function PharmacyLayout({ children }) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(true); // collapsed on mobile by default
 
     return (
-        <RouteGuard allowedRoles={["PHARMACIST"]}>
+        <RouteGuard allowedRoles={["PHARMACY", "PHARMACIST"]}>
             <div className="pharm-layout">
                 <Sidebar
                     collapsed={sidebarCollapsed}

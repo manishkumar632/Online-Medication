@@ -1,8 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "../../context/AuthContext";
+import { useNotifications } from "../../context/NotificationContext";
+import { fetchMessageUnreadCountAction } from "@/actions/messageAction";
 import "../patient-dashboard.css";
 
 const I = ({ d, size = 18, stroke = "currentColor", fill = "none" }) => (
@@ -64,14 +66,28 @@ const NAV_ITEMS = [
   {
     id: "prescriptions",
     label: "Prescriptions",
-    href: "/patient/dashboard",
-    badge: 2,
+    href: "/patient/prescriptions",
     icon: (
       <I
         d={
           <>
-            <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v6m0 0H3m6 0h12M3 9v10a2 2 0 0 0 2 2h14" />
+            <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 1 2 2v4M9 3v6m0 0H3m6 0h12M3 9v10a2 2 0 0 0 2 2h14" />
             <path d="M9 14h.01M9 17h.01M13 14h2M13 17h2" />
+          </>
+        }
+      />
+    ),
+  },
+  {
+    id: "pharmacy",
+    label: "Pharmacy",
+    href: "/patient/pharmacy",
+    icon: (
+      <I
+        d={
+          <>
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+            <polyline points="9 22 9 12 15 12 15 22" />
           </>
         }
       />
@@ -80,7 +96,7 @@ const NAV_ITEMS = [
   {
     id: "vitals",
     label: "Health Vitals",
-    href: "/patient/dashboard",
+    href: "/patient/vitals",
     icon: <I d="M22 12h-4l-3 9L9 3l-3 9H2" />,
   },
   {
@@ -101,13 +117,28 @@ const NAV_ITEMS = [
   {
     id: "messages",
     label: "Messages",
-    href: "/patient/dashboard",
-    badge: 2,
+    href: "/patient/messages",
     icon: (
       <I
         d={
           <>
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </>
+        }
+      />
+    ),
+  },
+  // ── Notifications nav item ─────────────────────────────────────────────────
+  {
+    id: "notifications",
+    label: "Notifications",
+    href: "/patient/notifications",
+    icon: (
+      <I
+        d={
+          <>
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
           </>
         }
       />
@@ -146,7 +177,6 @@ const NAV_ITEMS = [
   },
 ];
 
-// ✅ KEY: derive active item from the URL, not from local state
 function getActiveId(pathname) {
   if (!pathname) return "dashboard";
   if (pathname === "/patient" || pathname.startsWith("/patient/profile"))
@@ -157,6 +187,11 @@ function getActiveId(pathname) {
     pathname.startsWith("/patient/doctors")
   )
     return "find-doctor";
+  if (pathname.startsWith("/patient/prescriptions")) return "prescriptions";
+  if (pathname.startsWith("/patient/pharmacy")) return "pharmacy";
+  if (pathname.startsWith("/patient/vitals")) return "vitals";
+  if (pathname.startsWith("/patient/messages")) return "messages";
+  if (pathname.startsWith("/patient/notifications")) return "notifications"; // ← NEW
   if (pathname.startsWith("/patient/dashboard")) return "dashboard";
   return "dashboard";
 }
@@ -167,11 +202,42 @@ export default function PatientSidebarLayout({
   navbarCenter,
 }) {
   const router = useRouter();
-  const pathname = usePathname(); // ← reads the actual URL
+  const pathname = usePathname();
   const { user } = useAuth();
+  const { unreadCount, subscribeToMessages } = useNotifications();
   const [collapsed, setCollapsed] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const isOnMessagesPage = pathname?.startsWith("/patient/messages");
 
-  const activeId = getActiveId(pathname); // ← no more useState("dashboard")
+  // Ref so the SSE callback always reads the latest page state
+  // without tearing down and re-registering the subscription on every navigation
+  const isOnMessagesPageRef = useRef(isOnMessagesPage);
+  useEffect(() => {
+    isOnMessagesPageRef.current = isOnMessagesPage;
+  }, [isOnMessagesPage]);
+
+  // Seed from API on mount
+  useEffect(() => {
+    fetchMessageUnreadCountAction().then((res) => {
+      if (res.success) setUnreadMessages(res.count ?? 0);
+    });
+  }, []);
+
+  // Clear badge when user visits the messages page
+  useEffect(() => {
+    if (isOnMessagesPage) setUnreadMessages(0);
+  }, [isOnMessagesPage]);
+
+  // SSE: one stable subscription — never torn down on navigation
+  useEffect(() => {
+    return subscribeToMessages(() => {
+      if (!isOnMessagesPageRef.current) {
+        setUnreadMessages((n) => n + 1);
+      }
+    });
+  }, [subscribeToMessages]); // subscribeToMessages is a stable useCallback ref
+
+  const activeId = getActiveId(pathname);
   const initials = user?.name
     ? user.name
         .split(" ")
@@ -202,17 +268,48 @@ export default function PatientSidebarLayout({
         </div>
 
         <nav className="pd-sidebar-nav">
-          {NAV_ITEMS.map((item) => (
+          {NAV_ITEMS.map((item) => {
+            // Notifications badge (indigo) + Messages badge (blue)
+            const badge =
+              item.id === "notifications" && unreadCount > 0
+                ? { count: unreadCount, color: "#6366f1" }
+                : item.id === "messages" && unreadMessages > 0
+                  ? { count: unreadMessages, color: "#2563eb" }
+                  : null;
+
+            return (
               <Link
-                  key={item.id}
-              href={item.href}
-              className={`pd-nav-item ${activeId === item.id ? "active" : ""}`}
-            >
-              <span className="nav-icon">{item.icon}</span>
-              <span className="nav-label">{item.label}</span>
-              {item.badge && <span className="pd-nav-badge">{item.badge}</span>}
-            </Link>
-          ))}
+                key={item.id}
+                href={item.href}
+                className={`pd-nav-item ${activeId === item.id ? "active" : ""}`}
+              >
+                <span className="nav-icon">{item.icon}</span>
+                <span className="nav-label">{item.label}</span>
+                {badge !== null && (
+                  <span
+                    className="pd-nav-badge"
+                    style={{
+                      marginLeft: "auto",
+                      minWidth: 18,
+                      height: 18,
+                      background: badge.color,
+                      color: "#fff",
+                      borderRadius: 999,
+                      fontSize: "0.65rem",
+                      fontWeight: 700,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: "0 5px",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {badge.count > 99 ? "99+" : badge.count}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="pd-sidebar-footer">
@@ -273,7 +370,13 @@ export default function PatientSidebarLayout({
           </div>
 
           <div className="pd-navbar-right">
-            <button className="pd-icon-btn" title="Notifications">
+            {/* Navbar bell — navigates to /patient/notifications and shows live dot */}
+            <button
+              className="pd-icon-btn"
+              title="Notifications"
+              onClick={() => router.push("/patient/notifications")}
+              style={{ position: "relative" }}
+            >
               <svg
                 width="18"
                 height="18"
@@ -285,8 +388,23 @@ export default function PatientSidebarLayout({
                 <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                 <path d="M13.73 21a2 2 0 0 1-3.46 0" />
               </svg>
-              <span className="notif-dot" />
+              {/* Show red dot only when there are unread notifications */}
+              {unreadCount > 0 && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 2,
+                    right: 2,
+                    width: 8,
+                    height: 8,
+                    background: "#ef4444",
+                    borderRadius: "50%",
+                    border: "1.5px solid #fff",
+                  }}
+                />
+              )}
             </button>
+
             <div
               className="pd-avatar-sm"
               style={{ cursor: "pointer" }}
